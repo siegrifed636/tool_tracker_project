@@ -28,4 +28,5 @@ urlpatterns = [
     path('tool/<int:tool_id>/history/', views.get_tool_history, name='get_tool_history'),
     path('lab/download/', views.download_laporan_lab, name='download_laporan_lab'),
     path('suku-cadang/download/', views.download_laporan_stok, name='download_laporan_stok'),
+    path('hak-akses/<int:user_id>/delete/', views.hapus_pengguna, name='hapus_pengguna'),
 ]

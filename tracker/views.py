@@ -419,6 +419,28 @@ def edit_hak_akses(request, user_id):
     return render(request, 'tracker/edit_hak_akses.html', {'form': form, 'user_to_edit': user_to_edit})
 
 @login_required
+def hapus_pengguna(request, user_id):
+    # Keamanan: Pastikan hanya developer yang bisa menghapus
+    if not request.user.userprofile.is_developer:
+        messages.error(request, "Anda tidak memiliki izin untuk melakukan aksi ini.")
+        return redirect('daftar_proses')
+
+    # Cari user yang akan dihapus
+    user_to_delete = get_object_or_404(User, pk=user_id)
+    
+    # Pastikan developer tidak menghapus akunnya sendiri
+    if user_to_delete == request.user:
+        messages.error(request, "Anda tidak dapat menghapus akun Anda sendiri.")
+        return redirect('hak_akses_list')
+
+    if request.method == 'POST':
+        username = user_to_delete.username
+        user_to_delete.delete()
+        messages.success(request, f'Akun "{username}" telah berhasil dihapus.')
+    
+    return redirect('hak_akses_list')
+
+@login_required
 def get_tool_history(request, tool_id):
     tool = get_object_or_404(Tool, pk=tool_id)
     history = tool.riwayat_perbaikan.all().order_by('-waktu_selesai')

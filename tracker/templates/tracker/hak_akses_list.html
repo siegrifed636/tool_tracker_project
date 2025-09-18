@@ -1,5 +1,6 @@
 {% extends 'tracker/base.html' %}
 {% block title %}Manajemen Hak Akses{% endblock %}
+
 {% block content %}
 <h2 class="mb-4">Manajemen Hak Akses Pengguna</h2>
 <div class="card">
@@ -21,6 +22,11 @@
                     <td>{{ u.email }}</td>
                     <td>
                         <a href="{% url 'edit_hak_akses' u.id %}" class="btn btn-sm btn-primary">Edit Hak Akses</a>
+                        
+                        <form action="{% url 'hapus_pengguna' u.id %}" method="post" class="d-inline" onsubmit="return confirm('Apakah Anda yakin ingin menghapus pengguna ini secara permanen?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
+                        </form>
                     </td>
                 </tr>
                 {% empty %}
