@@ -1,0 +1,79 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Daftar Tool di {{ proses.nama }}{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Daftar Tool untuk Proses: <strong>{{ proses.nama }}</strong></h2>
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover table-sm">
+                <thead>
+                    <tr>
+                        <th>Proses</th>
+                        <th>Stasiun</th>
+                        <th>ID Tool</th>
+                        <th>Tipe Tool</th>
+                        <th>Nomor Seri</th>
+                        <th>Shot per Produksi</th>
+                        <th>Max Shot</th>
+                        <th>Shot Terpakai</th>
+                        <th>Sisa Shot</th>
+                        <th>Lifetime (hari)</th>
+                        <th>Performa</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tool in tools %}
+                    <tr>
+                        <td>{{ tool.proses.nama }}</td>
+                        <td>{{ tool.stasiun }}</td>
+                        <td>{{ tool.id_tool }}</td>
+                        <td>{{ tool.tipe_tool }}</td>
+                        <td>{{ tool.nomor_seri }}</td>
+                        <td>{{ tool.jumlah_shot }}</td>
+                        <td>{{ tool.max_shot }}</td>
+                        <td>{{ tool.shot_terpakai }}</td>
+                        <td>{{ tool.sisa_shot }}</td>
+                        <td>{{ tool.lifetime }}</td>
+                        <td>
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar {% if tool.performa > 70 %}bg-success{% elif tool.performa >= 30 %}bg-warning text-dark{% else %}bg-danger{% endif %}" 
+                                     role="progressbar" style="width: {{ tool.performa }}%;" 
+                                     aria-valuenow="{{ tool.performa }}" aria-valuemin="0" aria-valuemax="100">
+                                    {{ tool.performa }}%
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <button type="button" class="btn btn-sm btn-secondary view-history-btn" 
+                                    data-bs-toggle="modal" data-bs-target="#historyModal" 
+                                    data-tool-id="{{ tool.id }}" data-tool-name="{{ tool.id_tool }}">
+                                Riwayat
+                            </button>
+                            {% if user.userprofile.is_developer or user.userprofile.can_edit_proses %}
+                            <a href="{% url 'edit_tool' tool.id %}" class="btn btn-sm btn-warning">Edit</a>
+                            <form action="{% url 'hapus_tool' tool.id %}" method="post" class="d-inline" onsubmit="return confirm('Yakin ingin hapus tool ini?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-danger">Hapus</button>
+                            </form>
+                            <form action="{% url 'send_to_lab' tool.id %}" method="post" class="d-inline" onsubmit="return confirm('Kirim tool ini ke Lab Maintenance?');">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-sm btn-info">Kirim ke Lab</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="12" class="text-center">Belum ada tool di proses ini.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<a href="{% url 'daftar_proses' %}" class="btn btn-secondary mt-3">Kembali ke Daftar Proses</a>
+{% endblock %}

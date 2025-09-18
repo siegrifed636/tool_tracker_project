@@ -1,0 +1,66 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Daftar Proses{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Daftar Semua Proses Kerja</h2>
+    {% if user.userprofile.is_developer or user.userprofile.can_edit_proses %}
+    <div class="btn-group">
+        <a href="{% url 'tambah_tool' %}" class="btn btn-success">+ Tambah Tool Baru</a>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProsesModal">
+            + Tambah Proses Baru
+        </button>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="list-group">
+            {% for proses in semua_proses %}
+                <a href="{% url 'daftar_tool' proses.id %}" class="list-group-item list-group-item-action">
+                    {{ proses.nama }}
+                </a>
+            {% empty %}
+                <p class="list-group-item">Belum ada proses yang ditambahkan.</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="addProsesModal" aria-labelledby="addProsesModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addProsesModalLabel">Tambah Proses Baru</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="{% url 'daftar_proses' %}">
+          {% csrf_token %}
+          <div class="modal-body">
+              {{ proses_form.as_p }}
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+            <button type="submit" class="btn btn-primary">Simpan</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const addProsesModal = document.getElementById('addProsesModal');
+    const namaProsesInput = document.getElementById('id_nama_proses');
+
+    if (addProsesModal) {
+        addProsesModal.addEventListener('shown.bs.modal', function () {
+            if (namaProsesInput) {
+                namaProsesInput.focus();
+            }
+        });
+    }
+</script>
+{% endblock %}

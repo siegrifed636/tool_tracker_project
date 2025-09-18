@@ -1,0 +1,7 @@
+Halo {{ user.username }},
+
+Terima kasih telah mendaftar. Silakan klik link di bawah ini untuk mengaktifkan akun Anda:
+http://{{ domain }}{% url 'activate' uidb64=uid token=token %}
+
+Salam,
+Tim Aplikasi Tool Tracker

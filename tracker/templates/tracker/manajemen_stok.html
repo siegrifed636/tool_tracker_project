@@ -1,0 +1,98 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Manajemen Stok Suku Cadang{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Manajemen Stok Suku Cadang</h2>
+    {% if user.userprofile.is_developer or user.userprofile.can_edit_stok %}
+    <a href="{% url 'download_laporan_stok' %}" class="btn btn-primary">Unduh Riwayat Stok</a>
+    {% endif %}
+</div>
+
+{% if user.userprofile.is_developer or user.userprofile.can_edit_stok %}
+<div class="row">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">Form Pemasukan Stok</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form_masuk.as_p }}
+                    <button type="submit" name="submit_masuk" class="btn btn-success">Simpan Pemasukan</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header bg-danger text-white">Form Pengambilan Stok</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form_keluar.as_p }}
+                    <button type="submit" name="submit_keluar" class="btn btn-danger">Simpan Pengambilan</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<h3 class="mt-4">Daftar Stok Saat Ini</h3>
+<div class="card mb-4">
+    <div class="card-body">
+        <table class="table table-sm">
+            <thead><tr><th>Nama Barang</th><th>Jumlah Stok</th></tr></thead>
+            <tbody>
+            {% for item in stok_sekarang %}
+                <tr><td>{{ item.nama }}</td><td>{{ item.jumlah_stok }}</td></tr>
+            {% empty %}
+                <tr><td colspan="2">Belum ada suku cadang.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h3 class="mt-4">Riwayat Transaksi</h3>
+<div class="card">
+    <div class="card-body">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Nama Barang</th>
+                    <th>Jumlah</th>
+                    <th>Status</th>
+                    <th>Tanggal</th>
+                    <th>Waktu</th>
+                    <th>Tujuan</th>
+                    <th>Nama</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in riwayat %}
+                <tr>
+                    <td>{{ log.suku_cadang.nama }}</td>
+                    <td>{{ log.jumlah }}</td>
+                    <td>
+                        {% if log.status == 'Masuk' %}
+                            <span class="badge bg-success">{{ log.status }}</span>
+                        {% else %}
+                            <span class="badge bg-danger">{{ log.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.waktu|date:"d M Y" }}</td>
+                    <td>{{ log.waktu|date:"H:i" }}</td>
+                    <td>{{ log.tujuan|default_if_none:"" }}</td>
+                    <td>{{ log.nama_pengguna }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center">Belum ada riwayat transaksi.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

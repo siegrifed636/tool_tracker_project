@@ -1,0 +1,20 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}Selesaikan Perbaikan{% endblock %}
+
+{% block content %}
+<h2>Selesaikan Perbaikan untuk Tool: <span class="text-muted">{{ tool.id_tool }}</span></h2>
+<hr>
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            
+            {{ form.as_p }}
+
+            <button type="submit" class="btn btn-success mt-3">Simpan & Selesaikan Perbaikan</button>
+            <a href="{% url 'lab_maintenance_list' %}" class="btn btn-secondary mt-3">Batal</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

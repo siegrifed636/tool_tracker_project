@@ -1,0 +1,123 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Lab Maintenance{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Tool Sedang Diperbaiki</h2>
+<div class="card mb-5">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Masuk Lab</th>
+                        <th>ID Tool</th>
+                        <th>Tipe Tool</th>
+                        <th>Status</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for repair in active_repairs %}
+                    <tr>
+                        <td>{{ repair.waktu_masuk|date:"d M Y, H:i" }}</td>
+                        <td>{{ repair.tool.id_tool }}</td>
+                        <td>{{ repair.tool.tipe_tool }}</td>
+                        <td><span class="badge bg-warning text-dark">{{ repair.status }}</span></td>
+                        <td>
+                            {% if user.userprofile.is_developer or user.userprofile.can_edit_lab %}
+                            <a href="{% url 'finish_repair' repair.tool.id %}" class="btn btn-sm btn-success">Selesaikan Perbaikan</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center">Tidak ada tool yang sedang dalam perbaikan.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Riwayat Lengkap Perbaikan</h2>
+    {% if user.userprofile.is_developer or user.userprofile.can_edit_lab %}
+    <a href="{% url 'download_laporan_lab' %}?year={{ selected_year|default:'' }}&month={{ selected_month|default:'' }}" class="btn btn-primary">Unduh Laporan Excel</a>
+    {% endif %}
+</div>
+
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-center">
+            <div class="col-auto">
+                <label for="year" class="form-label">Tahun</label>
+                <select name="year" id="year" class="form-select">
+                    <option value="">Semua Tahun</option>
+                    {% for year in years_with_history %}
+                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <label for="month" class="form-label">Bulan</label>
+                <select name="month" id="month" class="form-select">
+                    <option value="">Semua Bulan</option>
+                    {% for month in months %}
+                    <option value="{{ month.value }}" {% if month.value == selected_month %}selected{% endif %}>{{ month.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto mt-4">
+                <button type="submit" class="btn btn-info">Filter</button>
+                <a href="{% url 'lab_maintenance_list' %}" class="btn btn-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>ID Tool</th>
+                        <th>Tipe Tool</th>
+                        <th>Nomor Seri</th>
+                        <th>Jenis Kerusakan</th>
+                        <th>Part Digunakan</th>
+                        <th>Dikembalikan ke Proses</th>
+                        <th>Tgl Masuk</th>
+                        <th>Waktu Masuk</th>
+                        <th>Tgl Selesai</th>
+                        <th>Waktu Selesai</th>
+                        <th>Oleh</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for log in history_list %}
+                    <tr>
+                        <td>{{ log.tool.id_tool }}</td>
+                        <td>{{ log.tool.tipe_tool }}</td>
+                        <td>{{ log.tool.nomor_seri }}</td>
+                        <td>{{ log.jenis_kerusakan }}</td>
+                        <td>{{ log.part_yang_digunakan }}</td>
+                        <td>{{ log.tool.proses.nama|default:"-" }}</td>
+                        <td>{{ log.waktu_masuk|date:"d M Y" }}</td>
+                        <td>{{ log.waktu_masuk|date:"H:i" }}</td>
+                        <td>{{ log.waktu_selesai|date:"d M Y" }}</td>
+                        <td>{{ log.waktu_selesai|date:"H:i" }}</td>
+                        <td>{{ log.dikerjakan_oleh }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="11" class="text-center">Tidak ada riwayat untuk filter ini.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

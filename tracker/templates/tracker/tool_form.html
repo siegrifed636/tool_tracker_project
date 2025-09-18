@@ -1,0 +1,24 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}
+    {% if form.instance.pk %}Edit Tool{% else %}Tambah Tool Baru{% endif %}
+{% endblock %}
+
+{% block content %}
+    {% if form.instance.pk %}
+        <h2>Edit Tool: <span class="text-muted">{{ form.instance.id_tool }}</span></h2>
+    {% else %}
+        <h2>Tambah Tool Baru</h2>
+    {% endif %}
+    <hr>
+    <div class="card">
+        <div class="card-body">
+            <form method="post">
+                {% csrf_token %}
+                {{ form.as_p }}
+                <button type="submit" class="btn btn-primary mt-3">Simpan Tool</button>
+                <a href="{% url 'daftar_proses' %}" class="btn btn-secondary mt-3">Batal</a>
+            </form>
+        </div>
+    </div>
+{% endblock %}

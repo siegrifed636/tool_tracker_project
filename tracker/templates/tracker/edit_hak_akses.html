@@ -1,0 +1,16 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Edit Hak Akses{% endblock %}
+{% block content %}
+<h2>Edit Hak Akses untuk: <span class="text-muted">{{ user_to_edit.username }}</span></h2>
+<hr>
+<div class="card">
+    <div class="card-body">
+        <form method="post">
+            {% csrf_token %}
+            {{ form.as_p }}
+            <button type="submit" class="btn btn-success mt-3">Simpan Perubahan</button>
+            <a href="{% url 'hak_akses_list' %}" class="btn btn-secondary mt-3">Batal</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

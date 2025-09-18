@@ -1,0 +1,125 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Laporan & Riwayat{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">Dasbor Laporan Tool</h2>
+    {% if user.userprofile.is_developer or user.userprofile.can_edit_laporan %}
+    <a href="{% url 'download_laporan_excel' %}" class="btn btn-primary">Unduh Laporan Excel</a>
+    {% endif %}
+</div>
+
+<div class="row">
+    <div class="col-lg-4">
+        <div class="card mb-4">
+            <div class="card-header">Distribusi Kondisi Tool</div>
+            <div class="card-body"><canvas id="statusChart"></canvas></div>
+        </div>
+        <div class="card">
+            <div class="card-header">Ringkasan Performa Tool</div>
+            <ul class="list-group list-group-flush">
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Kondisi Baik ( > 70%) <span class="badge bg-success rounded-pill">{{ green_count }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Kondisi Waspada (30% - 70%) <span class="badge bg-warning text-dark rounded-pill">{{ yellow_count }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Kondisi Kritis ( < 30%) <span class="badge bg-danger rounded-pill">{{ red_count }}</span>
+                </li>
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    Dalam Perbaikan <span class="badge bg-secondary rounded-pill">{{ perbaikan_count }}</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">Daftar Tool</div>
+            <div class="card-body">
+                <form method="get" class="row g-2 mb-3">
+                    <div class="col-sm-8">
+                        <select name="proses_filter" class="form-select">
+                            <option value="">-- Tampilkan Semua Proses --</option>
+                            {% for proses in all_proses %}
+                            <option value="{{ proses.id }}" {% if proses.id == selected_proses_id %}selected{% endif %}>
+                                {{ proses.nama }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-sm-4"><button type="submit" class="btn btn-info w-100">Filter</button></div>
+                </form>
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr><th>Proses</th><th>Stasiun</th><th>ID Tool</th><th>Tipe Tool</th><th>Performa</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for tool in tools %}
+                            <tr>
+                                <td>{{ tool.proses.nama|default:"N/A" }}</td>
+                                <td>{{ tool.stasiun }}</td>
+                                <td>{{ tool.id_tool }}</td>
+                                <td>{{ tool.tipe_tool }}</td>
+                                <td>
+                                    {% if tool.status == 'Perbaikan' %}<span class="badge bg-secondary">Di Lab</span>
+                                    {% else %}
+                                    <div class="progress" style="height: 18px;">
+                                        <div class="progress-bar {% if tool.performa > 70 %}bg-success{% elif tool.performa >= 30 %}bg-warning text-dark{% else %}bg-danger{% endif %}" 
+                                             role="progressbar" style="width: {{ tool.performa }}%;">
+                                            {{ tool.performa }}%
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-center">Tidak ada tool yang cocok.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    Chart.register(ChartDataLabels);
+    const ctx = document.getElementById('statusChart');
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Kondisi Baik', 'Kondisi Waspada', 'Kondisi Kritis', 'Dalam Perbaikan'],
+            datasets: [{
+                label: 'Jumlah Tool',
+                data: [{{ green_count }}, {{ yellow_count }}, {{ red_count }}, {{ perbaikan_count }}],
+                backgroundColor: ['rgba(25, 135, 84, 0.8)','rgba(255, 193, 7, 0.8)','rgba(220, 53, 69, 0.8)','rgba(108, 117, 125, 0.8)'],
+                borderColor: '#fff',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    formatter: (value, ctx) => {
+                        let sum = 0;
+                        let dataArr = ctx.chart.data.datasets[0].data;
+                        dataArr.map(data => { sum += data; });
+                        if (value === 0) { return ''; }
+                        let percentage = (value * 100 / sum).toFixed(1) + "%";
+                        return percentage;
+                    },
+                    color: '#fff',
+                    font: { weight: 'bold' }
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

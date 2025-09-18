@@ -1,0 +1,48 @@
+{% extends 'tracker/base.html' %}
+{% block title %}Input Target Produksi{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Input Target Produksi Global</h2>
+
+<div class="row">
+    {% if user.userprofile.is_developer or user.userprofile.can_edit_produksi %}
+    <div class="col-md-5">
+        <div class="card">
+            <div class="card-header">Input Data</div>
+            <div class="card-body">
+                <p>Masukkan jumlah produksi. Shot terpakai akan otomatis ditambahkan ke <strong>semua tool aktif</strong> di semua proses.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    {{ form.as_p }}
+                    <button type="submit" class="btn btn-primary">Simpan & Update Semua Tool</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <div class="{% if user.userprofile.is_developer or user.userprofile.can_edit_produksi %}col-md-7{% else %}col-md-12{% endif %}">
+        <h4>Riwayat Input Terakhir</h4>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Waktu</th>
+                    <th>Jumlah Produksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in riwayat_produksi %}
+                <tr>
+                    <td>{{ log.dibuat_pada|date:"d M Y, H:i" }}</td>
+                    <td>{{ log.jumlah_produksi }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="2" class="text-center">Belum ada data produksi.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
