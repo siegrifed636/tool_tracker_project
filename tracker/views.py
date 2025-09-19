@@ -264,17 +264,25 @@ def halaman_laporan(request):
     tools = Tool.objects.all()
     if selected_proses_id and selected_proses_id.isdigit():
         tools = tools.filter(proses_id=selected_proses_id)
+    
     pie_data_tersedia = tools.filter(status='Tersedia').count()
     pie_data_dipakai = tools.filter(status='Dipakai').count()
     pie_data_perbaikan = tools.filter(status='Perbaikan').count()
+
     green_count = 0
     yellow_count = 0
     red_count = 0
+
     tools_for_performance_check = tools.exclude(status='Perbaikan')
     for tool in tools_for_performance_check:
-        if tool.performa > 70: green_count += 1
-        elif tool.performa >= 30: yellow_count += 1
-        else: red_count += 1
+        # --- PERBAIKAN FINAL DI SINI ---
+        if tool.performa > 70:
+            green_count += 1
+        elif tool.performa >= 30:
+            yellow_count += 1
+        else:
+            red_count += 1
+
     context = {
         'tools': tools, 'all_proses': proses_list, 'selected_proses_id': int(selected_proses_id) if selected_proses_id else None,
         'pie_data_tersedia': pie_data_tersedia, 'pie_data_dipakai': pie_data_dipakai, 'pie_data_perbaikan': pie_data_perbaikan,
