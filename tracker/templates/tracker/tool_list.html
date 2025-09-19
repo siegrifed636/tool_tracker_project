@@ -14,12 +14,12 @@
                         <th>ID Tool</th>
                         <th>Tipe Tool</th>
                         <th>Nomor Seri</th>
-                        <th>Shot per Produksi</th>
+                        <th>Shot/Prod</th>
                         <th>Max Shot</th>
                         <th>Shot Terpakai</th>
                         <th>Sisa Shot</th>
-                        <th>Performa Shot</th>
-                        <th>Penggunaan Lifetime</th>
+                        <th>Lifetime (Jam Pakai)</th>
+                        <th>Performa (Shot)</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -35,20 +35,12 @@
                         <td>{{ tool.max_shot }}</td>
                         <td>{{ tool.shot_terpakai }}</td>
                         <td>{{ tool.sisa_shot }}</td>
+                        <td>{{ tool.jam_pakai_terakumulasi|floatformat:1 }} Jam</td>
                         <td>
                             <div class="progress" style="height: 20px;">
-                                <div class="progress-bar {% if tool.performa_shot > 70 %}bg-success{% elif tool.performa_shot >= 30 %}bg-warning text-dark{% else %}bg-danger{% endif %}" 
-                                     role="progressbar" style="width: {{ tool.performa_shot }}%;">
-                                    {{ tool.performa_shot }}%
-                                </div>
-                            </div>
-                        </td>
-                        <td>
-                            <div class="progress" title="{{ tool.jam_pakai_terakumulasi|floatformat:1 }} / {{ tool.lifetime }} Jam" style="height: 20px;">
-                                <div class="progress-bar 
-                                    {% if tool.persentase_lifetime < 70 %}bg-success{% elif tool.persentase_lifetime < 90 %}bg-warning text-dark{% else %}bg-danger{% endif %}"
-                                     role="progressbar" style="width: {{ tool.persentase_lifetime }}%;">
-                                    {{ tool.persentase_lifetime }}%
+                                <div class="progress-bar {% if tool.performa > 70 %}bg-success{% elif tool.performa >= 30 %}bg-warning text-dark{% else %}bg-danger{% endif %}" 
+                                     role="progressbar" style="width: {{ tool.performa }}%;">
+                                    {{ tool.performa }}%
                                 </div>
                             </div>
                         </td>
@@ -81,6 +73,5 @@
         </div>
     </div>
 </div>
-
 <a href="{% url 'daftar_proses' %}" class="btn btn-secondary mt-3">Kembali ke Daftar Proses</a>
 {% endblock %}

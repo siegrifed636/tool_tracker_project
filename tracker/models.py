@@ -28,17 +28,9 @@ class Tool(models.Model):
     @property
     def sisa_shot(self): return self.max_shot - self.shot_terpakai
     @property
-    def performa_shot(self):
+    def performa(self):
         if self.max_shot > 0: return round((self.sisa_shot / self.max_shot) * 100)
         return 0
-    
-    @property
-    def persentase_lifetime(self):
-        if self.lifetime > 0:
-            percentage = (self.jam_pakai_terakumulasi / self.lifetime) * 100
-            return min(round(percentage), 100) # Pastikan tidak lebih dari 100%
-        return 0
-    
 
 class SukuCadang(models.Model):
     nama = models.CharField(max_length=200, unique=True)
