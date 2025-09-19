@@ -21,7 +21,7 @@ class ToolForm(forms.ModelForm):
         # 'jumlah_shot' ditambahkan ke daftar ini
         fields = [
             'proses', 'stasiun', 'id_tool', 'tipe_tool', 
-            'nomor_seri', 'jumlah_shot', 'max_shot', 'lifetime'
+            'nomor_seri', 'jumlah_shot', 'max_shot', 'lifetime', 'jam_pakai_terakumulasi'
         ]
 
     def __init__(self, *args, **kwargs):
@@ -65,9 +65,9 @@ class StokKeluarForm(forms.Form):
             self.fields[field].widget.attrs.update({'class': 'form-control'})
 
 class ProductionLogForm(forms.ModelForm):
+    durasi_produksi = forms.FloatField(label="Durasi Produksi Hari Ini (Jam)", required=True, min_value=0)
     class Meta:
         model = ProductionLog
-        # Field 'proses' sudah dihapus dari daftar ini
         fields = ['jumlah_produksi']
 
     def __init__(self, *args, **kwargs):

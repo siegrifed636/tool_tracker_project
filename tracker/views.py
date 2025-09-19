@@ -374,24 +374,22 @@ def halaman_produksi(request):
     if request.method == 'POST':
         form = ProductionLogForm(request.POST)
         if form.is_valid():
-            # Simpan log produksi global
             log_entry = form.save()
             jumlah_produksi_hari_ini = log_entry.jumlah_produksi
-
-            # Dapatkan SEMUA tool yang aktif (punya proses dan tidak sedang diperbaiki)
+            durasi_jam = form.cleaned_data.get('durasi_produksi')
             tools_untuk_diupdate = Tool.objects.filter(proses__isnull=False).exclude(status='Perbaikan')
 
-            # Lakukan perulangan dan update setiap tool
             for tool in tools_untuk_diupdate:
                 shot_yang_digunakan = jumlah_produksi_hari_ini * tool.jumlah_shot
                 tool.shot_terpakai += shot_yang_digunakan
+                tool.jam_pakai_terakumulasi += durasi_jam
                 tool.save()
             
-            messages.success(request, f'Shot terpakai telah ditambahkan ke {tools_untuk_diupdate.count()} tool aktif.')
+            messages.success(request, f'Data telah ditambahkan ke {tools_untuk_diupdate.count()} tool aktif.')
             return redirect('halaman_produksi')
     else:
         form = ProductionLogForm()
-
+    
     riwayat_produksi = ProductionLog.objects.all().order_by('-dibuat_pada')[:10]
     context = {'form': form, 'riwayat_produksi': riwayat_produksi}
     return render(request, 'tracker/halaman_produksi.html', context)

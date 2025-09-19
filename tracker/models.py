@@ -16,7 +16,8 @@ class Tool(models.Model):
     jumlah_shot = models.IntegerField("Shot per Produksi", default=1)
     max_shot = models.IntegerField("Max Shot", default=0)
     shot_terpakai = models.IntegerField("Shot Terpakai", default=0)
-    lifetime = models.IntegerField("Lifetime (hari)", default=365)
+    lifetime = models.IntegerField("Total Jam Pakai Maksimal", default=5000)
+    jam_pakai_terakumulasi = models.FloatField(default=0, verbose_name="Jam Pakai Terakumulasi")
     STATUS_CHOICES = [('Tersedia', 'Tersedia'), ('Dipakai', 'Dipakai'), ('Perbaikan', 'Dalam Perbaikan')]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Tersedia')
     jenis_kerusakan = models.CharField(max_length=255, blank=True, null=True, help_text="Diisi saat tool masuk lab")
@@ -27,9 +28,17 @@ class Tool(models.Model):
     @property
     def sisa_shot(self): return self.max_shot - self.shot_terpakai
     @property
-    def performa(self):
+    def performa_shot(self):
         if self.max_shot > 0: return round((self.sisa_shot / self.max_shot) * 100)
         return 0
+    
+    @property
+    def persentase_lifetime(self):
+        if self.lifetime > 0:
+            percentage = (self.jam_pakai_terakumulasi / self.lifetime) * 100
+            return min(round(percentage), 100) # Pastikan tidak lebih dari 100%
+        return 0
+    
 
 class SukuCadang(models.Model):
     nama = models.CharField(max_length=200, unique=True)
