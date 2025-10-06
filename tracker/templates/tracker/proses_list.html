@@ -18,10 +18,27 @@
     <div class="card-body">
         <div class="list-group">
             {% for proses in semua_proses %}
-                <a href="{% url 'daftar_tool' proses.id %}" class="list-group-item list-group-item-action">
-                    {{ proses.nama }}
-                </a>
-            {% empty %}
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    
+                    <a href="{% url 'daftar_tool' proses.id %}" class="text-decoration-none text-dark fw-bold">
+                        {{ proses.nama }}
+                    </a>
+
+                    {% if user.userprofile.is_developer or user.userprofile.can_edit_proses %}
+                    <div>
+                        <form action="{% url 'hapus_proses' proses.id %}" method="post" class="d-inline">
+                            {% csrf_token %}
+                            <button type="submit" 
+                                    class="btn btn-danger btn-sm" 
+                                    onclick="return confirm('Anda yakin ingin menghapus proses \'{{ proses.nama }}\'? Ini juga akan menghapus semua tool yang ada di dalamnya.');">
+                                Hapus
+                            </button>
+                        </form>
+                    </div>
+                    {% endif %}
+
+                </div>
+                {% empty %}
                 <p class="list-group-item">Belum ada proses yang ditambahkan.</p>
             {% endfor %}
         </div>
@@ -53,7 +70,7 @@
 {% block scripts %}
 <script>
     const addProsesModal = document.getElementById('addProsesModal');
-    const namaProsesInput = document.getElementById('id_nama_proses');
+    const namaProsesInput = document.getElementById('id_nama'); // Pastikan id input sesuai
 
     if (addProsesModal) {
         addProsesModal.addEventListener('shown.bs.modal', function () {

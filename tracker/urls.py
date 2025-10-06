@@ -11,8 +11,6 @@ urlpatterns = [
     path('activate/<uidb64>/<token>/', views.activate, name='activate'),
     path('', views.daftar_proses, name='daftar_proses'),
     path('proses/<int:proses_id>/', views.daftar_tool, name='daftar_tool'),
-    path('', views.daftar_proses, name='daftar_proses'),
-    path('proses/<int:proses_id>/', views.daftar_tool, name='daftar_tool'),
     path('tool/tambah/', views.tambah_tool, name='tambah_tool'),
     path('tool/<int:tool_id>/edit/', views.edit_tool, name='edit_tool'),
     path('tool/<int:tool_id>/delete/', views.hapus_tool, name='hapus_tool'),
@@ -29,4 +27,6 @@ urlpatterns = [
     path('lab/download/', views.download_laporan_lab, name='download_laporan_lab'),
     path('suku-cadang/download/', views.download_laporan_stok, name='download_laporan_stok'),
     path('hak-akses/<int:user_id>/delete/', views.hapus_pengguna, name='hapus_pengguna'),
+    path('proses/<int:proses_id>/hapus/', views.hapus_proses, name='hapus_proses'),
+    path('repair/store/<int:tool_id>/', views.simpan_di_gudang, name='simpan_di_gudang'),
 ]

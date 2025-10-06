@@ -5,7 +5,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Manajemen Stok Suku Cadang</h2>
     {% if user.userprofile.is_developer or user.userprofile.can_edit_stok %}
-    <a href="{% url 'download_laporan_stok' %}" class="btn btn-primary">Unduh Riwayat Stok</a>
+    <a href="{% url 'download_laporan_stok' %}?start_date={{ request.GET.start_date|default:'' }}&end_date={{ request.GET.end_date|default:'' }}" class="btn btn-primary">Unduh Riwayat Stok</a>
     {% endif %}
 </div>
 
@@ -47,7 +47,7 @@
             {% for item in stok_sekarang %}
                 <tr><td>{{ item.nama }}</td><td>{{ item.jumlah_stok }}</td></tr>
             {% empty %}
-                <tr><td colspan="2">Belum ada suku cadang.</td></tr>
+                <tr><td colspan="2" class="text-center">Belum ada suku cadang.</td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -55,6 +55,19 @@
 </div>
 
 <h3 class="mt-4">Riwayat Transaksi</h3>
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">{{ filter_form.start_date.label_tag }} {{ filter_form.start_date }}</div>
+            <div class="col-md-4">{{ filter_form.end_date.label_tag }} {{ filter_form.end_date }}</div>
+            <div class="col-md-4">
+                <button type="submit" class="btn btn-info">Filter</button>
+                <a href="{% url 'manajemen_stok' %}" class="btn btn-secondary">Reset</a>
+            </div>
+        </form>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-body">
         <table class="table">
@@ -88,7 +101,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="7" class="text-center">Belum ada riwayat transaksi.</td>
+                    <td colspan="7" class="text-center">Tidak ada riwayat transaksi untuk filter ini.</td>
                 </tr>
                 {% endfor %}
             </tbody>

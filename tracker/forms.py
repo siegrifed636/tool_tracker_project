@@ -20,7 +20,7 @@ class ToolForm(forms.ModelForm):
         model = Tool
         # 'jumlah_shot' ditambahkan ke daftar ini
         fields = [
-            'proses', 'stasiun', 'id_tool', 'tipe_tool', 
+            'proses', 'stasiun', 'id_tool', 'tipe_tool',
             'nomor_seri', 'jumlah_shot', 'max_shot', 'lifetime', 'jam_pakai_terakumulasi'
         ]
 
@@ -100,3 +100,15 @@ class PermissionsForm(forms.ModelForm):
             'can_view_laporan', 'can_edit_laporan',
             'can_view_produksi', 'can_edit_produksi',
         ]
+
+class StokHistoryFilterForm(forms.Form):
+    start_date = forms.DateField(
+        label="Dari Tanggal",
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )
+    end_date = forms.DateField(
+        label="Sampai Tanggal",
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date', 'class': 'form-control'})
+    )

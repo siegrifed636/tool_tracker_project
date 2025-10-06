@@ -18,7 +18,7 @@ class Tool(models.Model):
     shot_terpakai = models.IntegerField("Shot Terpakai", default=0)
     lifetime = models.IntegerField("Total Jam Pakai Maksimal", default=5000)
     jam_pakai_terakumulasi = models.FloatField(default=0, verbose_name="Jam Pakai Terakumulasi")
-    STATUS_CHOICES = [('Tersedia', 'Tersedia'), ('Dipakai', 'Dipakai'), ('Perbaikan', 'Dalam Perbaikan')]
+    STATUS_CHOICES = [('Tersedia', 'Tersedia'), ('Dipakai', 'Dipakai'), ('Perbaikan', 'Dalam Perbaikan'), ('Gudang TPM', 'Gudang TPM'),]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Tersedia')
     jenis_kerusakan = models.CharField(max_length=255, blank=True, null=True, help_text="Diisi saat tool masuk lab")
     part_yang_digunakan = models.TextField(blank=True, null=True, help_text="Part yang diganti atau diperbaiki")
@@ -93,11 +93,11 @@ class RiwayatPerbaikan(models.Model):
     ]
     tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name='riwayat_perbaikan')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Sedang Diperbaiki')
-    
+
     # Waktu akan kita atur melalui view
     waktu_masuk = models.DateTimeField()
     waktu_selesai = models.DateTimeField(null=True, blank=True)
-    
+
     # Detail perbaikan, bisa kosong saat baru masuk
     jenis_kerusakan = models.CharField(max_length=255, null=True, blank=True)
     part_yang_digunakan = models.TextField(null=True, blank=True)
