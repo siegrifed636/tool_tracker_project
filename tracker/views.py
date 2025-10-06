@@ -361,40 +361,47 @@ def halaman_laporan(request):
     }
     return render(request, 'tracker/halaman_laporan.html', context)
 
-def apply_excel_styles(worksheet, min_row, max_col):
-    """Menerapkan style ke area tabel tertentu di worksheet."""
+def apply_excel_styles(worksheet, min_row=1, max_col=None):
+    """
+    Kasih style ke worksheet Excel.
+    - Header (row pertama) bold + center + fill warna biru.
+    - Border tipis ke semua cell.
+    - Auto adjust column width.
+    """
+    if max_col is None:
+        max_col = worksheet.max_column
+
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-    
-    # Memberi style pada baris header
+
+    # Styling header
     for col in range(1, max_col + 1):
         cell = worksheet.cell(row=min_row, column=col)
         cell.font = header_font
         cell.fill = header_fill
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    # Memberi style pada sel data
-    for row in worksheet.iter_rows(min_row=min_row + 1, max_col=max_col, max_row=worksheet.max_row):
+    # Border untuk semua cell
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+    for row in worksheet.iter_rows(min_row=1, max_row=worksheet.max_row, max_col=max_col):
         for cell in row:
             cell.border = thin_border
-            
-    # Mengatur lebar kolom (autofit)
+
+    # Autofit kolom
     for i, column_cells in enumerate(worksheet.columns):
         if i < max_col:
             max_length = 0
             column_letter = column_cells[0].column_letter
             for cell in column_cells:
-                # Hanya pertimbangkan sel di dalam tabel
-                if cell.row >= min_row:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-            adjusted_width = (max_length + 2) if max_length > 0 else 12
-            worksheet.column_dimensions[column_letter].width = adjusted_width
-            
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            worksheet.column_dimensions[column_letter].width = max_length + 2
+
     return worksheet
 
 @login_required
@@ -525,7 +532,7 @@ def download_laporan_lab(request):
             riwayat.dikerjakan_oleh
         ])
 
-    worksheet = apply_excel_styles(worksheet)
+    worksheet = apply_excel_styles(worksheet, min_row=1, max_col=worksheet.max_column)
     workbook.save(response)
     return response
 
