@@ -29,4 +29,5 @@ urlpatterns = [
     path('hak-akses/<int:user_id>/delete/', views.hapus_pengguna, name='hapus_pengguna'),
     path('proses/<int:proses_id>/hapus/', views.hapus_proses, name='hapus_proses'),
     path('repair/store/<int:tool_id>/', views.simpan_di_gudang, name='simpan_di_gudang'),
+    path('tool/archive/<int:tool_id>/', views.arsip_tool, name='arsip_tool'),
 ]

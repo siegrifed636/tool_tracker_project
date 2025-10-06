@@ -18,7 +18,7 @@ class Tool(models.Model):
     shot_terpakai = models.IntegerField("Shot Terpakai", default=0)
     lifetime = models.IntegerField("Total Jam Pakai Maksimal", default=5000)
     jam_pakai_terakumulasi = models.FloatField(default=0, verbose_name="Jam Pakai Terakumulasi")
-    STATUS_CHOICES = [('Tersedia', 'Tersedia'), ('Dipakai', 'Dipakai'), ('Perbaikan', 'Dalam Perbaikan'), ('Gudang TPM', 'Gudang TPM'),]
+    STATUS_CHOICES = [('Tersedia', 'Tersedia'), ('Dipakai', 'Dipakai'), ('Perbaikan', 'Dalam Perbaikan'), ('Gudang TPM', 'Gudang TPM'), ('Diarsipkan', 'Diarsipkan'),]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Tersedia')
     jenis_kerusakan = models.CharField(max_length=255, blank=True, null=True, help_text="Diisi saat tool masuk lab")
     part_yang_digunakan = models.TextField(blank=True, null=True, help_text="Part yang diganti atau diperbaiki")
