@@ -723,6 +723,7 @@ def download_laporan_stok(request):
 
     workbook.save(response)
     return response
+<<<<<<< HEAD
 
 @login_required
 def gudang_tpm_list(request):
@@ -854,3 +855,5 @@ def download_gudang_excel(request):
 
     wb.save(response)
     return response
+=======
+>>>>>>> 46971731e287f8bb15e00100b859853cdc1b9396
