@@ -28,6 +28,10 @@ urlpatterns = [
     path('suku-cadang/download/', views.download_laporan_stok, name='download_laporan_stok'),
     path('hak-akses/<int:user_id>/delete/', views.hapus_pengguna, name='hapus_pengguna'),
     path('proses/<int:proses_id>/hapus/', views.hapus_proses, name='hapus_proses'),
+    path('gudang-tpm/', views.gudang_tpm_list, name='gudang_tpm_list'),
     path('repair/store/<int:tool_id>/', views.simpan_di_gudang, name='simpan_di_gudang'),
-    path('tool/archive/<int:tool_id>/', views.arsip_tool, name='arsip_tool'),
+    path('gudang/hapus/<int:tool_id>/', views.hapus_tool_gudang, name='hapus_tool_gudang'),
+    path('gudang/download/', views.download_gudang_excel, name='download_gudang_excel'),
+    path('gudang/kembalikan/<int:tool_id>/', views.kembalikan_tool_gudang, name='kembalikan_tool_gudang'),
+    path('gudang/kembalikan/<int:tool_id>/', views.kembalikan_ke_lab, name='kembalikan_tool_gudang'),
 ]

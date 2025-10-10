@@ -10,16 +10,16 @@ from django.contrib.sites.shortcuts import get_current_site
 from django.db import transaction
 from django.db.models.functions import TruncYear
 from django.http import HttpResponse, JsonResponse
-from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 from openpyxl.chart import DoughnutChart, Reference, Series
+from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+from openpyxl.utils import get_column_letter
 import openpyxl
 import datetime
-from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
 
 from .models import (
-    Proses, Tool, SukuCadang, RiwayatStok, ProductionLog, UserProfile, RiwayatPerbaikan
+    Proses, Tool, SukuCadang, RiwayatStok, ProductionLog, UserProfile, RiwayatPerbaikan, RiwayatGudang
 )
 from .forms import (
     UserRegisterForm, ToolForm, MaintenanceForm, StokMasukForm,
@@ -163,25 +163,15 @@ def send_to_lab(request, tool_id):
 
 @login_required
 def lab_maintenance_list(request):
-    # Ambil data untuk filter
     get_year = request.GET.get('year')
     get_month = request.GET.get('month')
-
-    # Daftar tool yang sedang aktif diperbaiki (selalu ditampilkan)
     active_repairs = RiwayatPerbaikan.objects.filter(status='Sedang Diperbaiki').order_by('waktu_masuk')
-
     gudang_tpm_tools = Tool.objects.filter(status='Gudang TPM').order_by('id_tool')
-
-    # Riwayat perbaikan yang sudah selesai
     history_list = RiwayatPerbaikan.objects.filter(status='Selesai').order_by('-waktu_selesai')
-
-    # Terapkan filter jika ada
     if get_year and get_year.isdigit():
         history_list = history_list.filter(waktu_selesai__year=int(get_year))
     if get_month and get_month.isdigit():
         history_list = history_list.filter(waktu_selesai__month=int(get_month))
-
-    # Siapkan data untuk dropdown filter
     years_with_history = RiwayatPerbaikan.objects.filter(waktu_selesai__isnull=False).annotate(year=TruncYear('waktu_selesai')).values('year').distinct().order_by('-year')
 
     context = {
@@ -201,6 +191,39 @@ def lab_maintenance_list(request):
         'selected_month': int(get_month) if get_month else None,
     }
     return render(request, 'tracker/lab_maintenance_list.html', context)
+
+@login_required
+def simpan_di_gudang(request, tool_id):
+    tool = get_object_or_404(Tool, pk=tool_id)
+    try:
+        riwayat_aktif = RiwayatPerbaikan.objects.get(tool=tool, status='Sedang Diperbaiki')
+    except RiwayatPerbaikan.DoesNotExist:
+        messages.error(request, 'Catatan perbaikan aktif tidak ditemukan untuk tool ini.')
+        return redirect('lab_maintenance_list')
+
+    if request.method == 'POST':
+        tool.status = 'Gudang TPM'   # ✅ pakai status valid
+        tool.save()
+
+        # Update perbaikan
+        riwayat_aktif.status = 'Selesai'
+        riwayat_aktif.waktu_selesai = timezone.now()
+        riwayat_aktif.dikerjakan_oleh = request.user.username
+        riwayat_aktif.jenis_kerusakan = riwayat_aktif.jenis_kerusakan or "N/A"
+        riwayat_aktif.part_yang_digunakan = "Tool disimpan di Gudang TPM."
+        riwayat_aktif.save()
+
+        # ✅ Simpan riwayat gudang
+        RiwayatGudang.objects.create(
+            tool=tool,
+            user=request.user,
+            catatan="Dipindahkan ke Gudang TPM"
+        )
+
+        messages.success(request, f'Tool "{tool.id_tool}" telah berhasil dipindahkan ke Gudang TPM.')
+        return redirect('lab_maintenance_list')
+
+    return redirect('lab_maintenance_list')
 
 @login_required
 def finish_repair(request, tool_id):
@@ -238,46 +261,6 @@ def finish_repair(request, tool_id):
         form = MaintenanceForm(instance=tool)
 
     return render(request, 'tracker/finish_repair_form.html', {'form': form, 'tool': tool})
-
-@login_required
-def simpan_di_gudang(request, tool_id):
-    tool = get_object_or_404(Tool, pk=tool_id)
-    
-    # Cari catatan perbaikan yang masih aktif untuk tool ini
-    try:
-        riwayat_aktif = RiwayatPerbaikan.objects.get(tool=tool, status='Sedang Diperbaiki')
-    except RiwayatPerbaikan.DoesNotExist:
-        messages.error(request, 'Catatan perbaikan aktif tidak ditemukan untuk tool ini.')
-        return redirect('lab_maintenance_list')
-
-    if request.method == 'POST':
-        # Ubah status tool
-        tool.status = 'Gudang TPM'
-        tool.save()
-
-        # Selesaikan catatan perbaikan dengan keterangan
-        riwayat_aktif.status = 'Selesai' # Status riwayat tetap selesai
-        riwayat_aktif.waktu_selesai = timezone.now()
-        riwayat_aktif.dikerjakan_oleh = request.user.username
-        riwayat_aktif.jenis_kerusakan = riwayat_aktif.jenis_kerusakan or "N/A" # Isi jika kosong
-        # Tambahkan catatan khusus di field part yang digunakan
-        riwayat_aktif.part_yang_digunakan = f"Tool disimpan di Gudang TPM. Catatan: {riwayat_aktif.part_yang_digunakan or ''}"
-        riwayat_aktif.save()
-
-        messages.success(request, f'Tool "{tool.id_tool}" telah dipindahkan ke Gudang TPM.')
-        return redirect('lab_maintenance_list')
-
-    # Jika bukan POST, kembalikan ke halaman lab
-    return redirect('lab_maintenance_list')
-
-@login_required
-def arsip_tool(request, tool_id):
-    if request.method == 'POST':
-        tool = get_object_or_404(Tool, pk=tool_id)
-        tool.status = 'Diarsipkan'
-        tool.save()
-        messages.success(request, f'Tool "{tool.id_tool}" telah berhasil diarsipkan.')
-    return redirect('lab_maintenance_list')
 
 @login_required
 @transaction.atomic
@@ -349,24 +332,41 @@ def manajemen_stok(request):
 def halaman_laporan(request):
     proses_list = Proses.objects.all()
     selected_proses_id = request.GET.get('proses_filter')
-    tools = Tool.objects.all()
+
+    semua_tool = Tool.objects.all()
     if selected_proses_id and selected_proses_id.isdigit():
-        tools = tools.filter(proses_id=selected_proses_id)
-    pie_data_tersedia = tools.filter(status='Tersedia').count()
-    pie_data_dipakai = tools.filter(status='Dipakai').count()
-    pie_data_perbaikan = tools.filter(status='Perbaikan').count()
+        semua_tool = semua_tool.filter(proses_id=selected_proses_id)
+
+    # Hitung kategori
     green_count = 0
     yellow_count = 0
     red_count = 0
-    tools_for_performance_check = tools.exclude(status='Perbaikan')
-    for tool in tools_for_performance_check:
-        if tool.performa > 70: green_count += 1
-        elif tool.performa >= 30: yellow_count += 1
-        else: red_count += 1
+    perbaikan_count = 0
+    gudang_count = 0
+
+    for tool in semua_tool:
+        if tool.status == 'Perbaikan':
+            perbaikan_count += 1
+        elif tool.status == 'Gudang TPM':
+            gudang_count += 1
+        else:
+            # Kalau tool masih aktif → baru dihitung performa
+            if tool.performa > 70:
+                green_count += 1
+            elif tool.performa >= 30:
+                yellow_count += 1
+            else:
+                red_count += 1
+
     context = {
-        'tools': tools, 'all_proses': proses_list, 'selected_proses_id': int(selected_proses_id) if selected_proses_id else None,
-        'pie_data_tersedia': pie_data_tersedia, 'pie_data_dipakai': pie_data_dipakai, 'pie_data_perbaikan': pie_data_perbaikan,
-        'green_count': green_count, 'yellow_count': yellow_count, 'red_count': red_count, 'perbaikan_count': pie_data_perbaikan,
+        'tools': semua_tool,
+        'all_proses': proses_list,
+        'selected_proses_id': int(selected_proses_id) if selected_proses_id else None,
+        'green_count': green_count,
+        'yellow_count': yellow_count,
+        'red_count': red_count,
+        'perbaikan_count': perbaikan_count,
+        'gudang_count': gudang_count,
     }
     return render(request, 'tracker/halaman_laporan.html', context)
 
@@ -423,16 +423,14 @@ def download_laporan_excel(request):
 
     # --- 1. AMBIL DATA & HITUNG RINGKASAN PERFORMA ---
     tools = Tool.objects.all()
-    
-    # === BAGIAN YANG DIPERBAIKI ADA DI SINI ===
+
     baik_count = 0
     waspada_count = 0
     kritis_count = 0
-    
-    # Ambil dulu tool yang akan dicek performanya
-    tools_for_performance_check = tools.exclude(status='Perbaikan')
-    
-    # Hitung manual dengan perulangan for di Python
+
+    # Ambil tool yang masih aktif untuk dicek performanya
+    tools_for_performance_check = tools.exclude(status__in=['Perbaikan', 'Gudang TPM'])
+
     for tool in tools_for_performance_check:
         if tool.performa > 70:
             baik_count += 1
@@ -440,10 +438,10 @@ def download_laporan_excel(request):
             waspada_count += 1
         else:
             kritis_count += 1
-            
-    # Hitungan untuk tool yang sedang perbaikan tetap sama
+
+    # Hitungan tambahan
     perbaikan_count = tools.filter(status='Perbaikan').count()
-    # === AKHIR BAGIAN YANG DIPERBAIKI ===
+    gudang_count = tools.filter(status='Gudang TPM').count()
 
     # --- 2. TULIS DATA RINGKASAN DI KANAN ATAS (sumber data grafik) ---
     summary_data = [
@@ -452,8 +450,9 @@ def download_laporan_excel(request):
         ("Kondisi Waspada (30% - 70%)", waspada_count),
         ("Kondisi Kritis (< 30%)", kritis_count),
         ("Dalam Perbaikan", perbaikan_count),
+        ("Gudang TPM", gudang_count),
     ]
-    # Tulis data ini mulai dari sel J1
+
     for i, (label, value) in enumerate(summary_data, start=1):
         worksheet.cell(row=i, column=10, value=label).font = Font(bold=True if i == 1 else False)
         worksheet.cell(row=i, column=11, value=value)
@@ -461,21 +460,19 @@ def download_laporan_excel(request):
     # --- 3. BUAT & TEMPATKAN GRAFIK DI KIRI ATAS ---
     chart = DoughnutChart()
     chart.title = "Distribusi Kondisi Tool"
-    chart.style = 18 
+    chart.style = 18
 
-    labels = Reference(worksheet, min_col=10, min_row=2, max_row=5)
-    data = Reference(worksheet, min_col=11, min_row=2, max_row=5)   
-    
+    labels = Reference(worksheet, min_col=10, min_row=2, max_row=6)
+    data = Reference(worksheet, min_col=11, min_row=2, max_row=6)
+
     chart.add_data(data, titles_from_data=False)
     chart.set_categories(labels)
-    
-    chart.height = 10 
+    chart.height = 10
     chart.width = 15
-
     worksheet.add_chart(chart, "A2")
 
     # --- 4. BUAT TABEL UTAMA DI BAGIAN BAWAH ---
-    table_start_row = 18 
+    table_start_row = 18
     headers = ['ID Tool', 'Tipe Tool', 'Nomor Seri', 'Proses', 'Stasiun', 'Status', 'Max Shot', 'Shot Terpakai', 'Sisa Shot', 'Performa (%)']
     for col, header_title in enumerate(headers, start=1):
         worksheet.cell(row=table_start_row, column=col, value=header_title)
@@ -490,11 +487,11 @@ def download_laporan_excel(request):
         worksheet.cell(row=row_num, column=7, value=tool.max_shot)
         worksheet.cell(row=row_num, column=8, value=tool.shot_terpakai)
         worksheet.cell(row=row_num, column=9, value=tool.sisa_shot)
-        worksheet.cell(row=row_num, column=10, value=tool.performa) # Pemanggilan di sini tidak masalah
+        worksheet.cell(row=row_num, column=10, value=tool.performa)
 
     # --- 5. TERAPKAN STYLE PADA TABEL UTAMA ---
     apply_excel_styles(worksheet, min_row=table_start_row, max_col=len(headers))
-    
+
     workbook.save(response)
     return response
 
@@ -618,11 +615,18 @@ def hapus_pengguna(request, user_id):
 @login_required
 def get_tool_history(request, tool_id):
     tool = get_object_or_404(Tool, pk=tool_id)
-    history = tool.riwayat_perbaikan.all().order_by('-waktu_selesai')
-    data = list(history.values('waktu_selesai', 'jenis_kerusakan', 'part_yang_digunakan', 'dikerjakan_oleh'))
-    for item in data:
-        item['waktu_selesai'] = item['waktu_selesai'].strftime('%d %b %Y, %H:%M')
-    return JsonResponse({'history': data})
+    history = RiwayatPerbaikan.objects.filter(tool=tool).order_by('-waktu_selesai')
+    
+    history_data = []
+    for item in history:
+        waktu_selesai_local = timezone.localtime(item.waktu_selesai)
+        history_data.append({
+            'waktu_selesai': waktu_selesai_local.strftime("%d %b %Y, %H:%M"),
+            'jenis_kerusakan': item.jenis_kerusakan,
+            'part_yang_digunakan': item.part_yang_digunakan,
+            'dikerjakan_oleh': item.dikerjakan_oleh,
+        })
+    return JsonResponse({'history': history_data})
 
 @login_required
 def download_laporan_lab(request):
@@ -718,4 +722,135 @@ def download_laporan_stok(request):
     worksheet2 = apply_excel_styles(worksheet2)
 
     workbook.save(response)
+    return response
+
+@login_required
+def gudang_tpm_list(request):
+    if not (hasattr(request.user, 'userprofile') and
+            (request.user.userprofile.can_manage_gudang_tpm or
+             request.user.userprofile.is_developer or
+             request.user.is_superuser)):
+        messages.error(request, "Anda tidak memiliki izin untuk mengakses halaman Gudang TPM.")
+        return redirect('daftar_proses')
+
+    # Pakai nilai yang sesuai dengan STATUS_CHOICES di models.py
+    tools = Tool.objects.filter(status='Gudang TPM').order_by('id_tool')
+    riwayat = RiwayatGudang.objects.all().order_by('-tanggal_masuk')
+
+    context = {
+        'tools': tools,
+        'riwayat': riwayat,
+    }
+    return render(request, 'tracker/gudang_tpm.html', context)
+
+@login_required
+def hapus_tool_gudang(request, tool_id):
+    tool = get_object_or_404(Tool, pk=tool_id, status='Gudang TPM')
+    if request.method == "POST":
+        tool.delete()
+        messages.success(request, f"Tool {tool.id_tool} berhasil dihapus permanen (riwayat tetap tersimpan).")
+        return redirect('gudang_tpm_list')
+    return redirect('gudang_tpm_list')
+
+@login_required
+def kembalikan_tool_gudang(request, tool_id):
+    tool = get_object_or_404(Tool, pk=tool_id)
+    if request.method == 'POST':
+        # Ubah status tool kembali ke 'Perbaikan'
+        tool.status = 'Perbaikan'
+        tool.save()
+
+        # Buat catatan baru di riwayat perbaikan
+        # 👇 PERBAIKI NAMA MODEL DI BARIS INI
+        RiwayatPerbaikan.objects.create(
+            tool=tool,
+            status='Sedang Diperbaiki',
+            waktu_masuk=timezone.now(),
+            jenis_kerusakan="Dikembalikan dari Gudang TPM", # Catatan otomatis
+        )
+
+        messages.success(request, f'Tool "{tool.id_tool}" telah dikembalikan ke Lab Maintenance.')
+        return redirect('gudang_tpm_list')
+    return redirect('gudang_tpm_list')
+
+@login_required
+def kembalikan_ke_lab(request, tool_id):
+    # Logika untuk fitur ini akan ditambahkan nanti
+    messages.info(request, "Fitur ini sedang dalam pengembangan.")
+    return redirect('gudang_tpm_list')
+
+@login_required
+def download_gudang_excel(request):
+    # 👇 1. AMBIL WAKTU SAAT INI (REAL-TIME)
+    waktu_sekarang = timezone.localtime(timezone.now())
+    timestamp_str = waktu_sekarang.strftime("%Y-%m-%d_%H-%M")
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    # 👇 2. GUNAKAN WAKTU REAL-TIME DI NAMA FILE
+    response['Content-Disposition'] = f'attachment; filename="gudang_tpm_{timestamp_str}.xlsx"'
+
+    wb = openpyxl.Workbook()
+
+    # === Sheet 1: Daftar Tool (Tidak ada perubahan di sini) ===
+    ws1 = wb.active
+    ws1.title = "Daftar Tool Gudang"
+    headers1 = ['ID Tool', 'Tipe Tool', 'Nomor Seri', 'Proses', 'Stasiun', 'Status', 'Max Shot', 'Shot Terpakai', 'Sisa Shot', 'Performa (%)']
+    tools = Tool.objects.filter(status='Gudang TPM')
+    for col, title in enumerate(headers1, start=1):
+        cell = ws1.cell(row=1, column=col, value=title)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    for row_num, tool in enumerate(tools, start=2):
+        ws1.cell(row=row_num, column=1, value=tool.id_tool)
+        ws1.cell(row=row_num, column=2, value=tool.tipe_tool)
+        ws1.cell(row=row_num, column=3, value=tool.nomor_seri)
+        ws1.cell(row=row_num, column=4, value=tool.proses.nama if tool.proses else "-")
+        ws1.cell(row=row_num, column=5, value=tool.stasiun)
+        ws1.cell(row=row_num, column=6, value=tool.status)
+        ws1.cell(row=row_num, column=7, value=tool.max_shot)
+        ws1.cell(row=row_num, column=8, value=tool.shot_terpakai)
+        ws1.cell(row=row_num, column=9, value=tool.sisa_shot)
+        ws1.cell(row=row_num, column=10, value=tool.performa)
+    # apply_excel_styles(ws1, min_row=1, max_col=len(headers1))
+
+    # === Sheet 2: Riwayat Gudang ===
+    ws2 = wb.create_sheet("Riwayat Gudang")
+
+    # 👇 3. TAMBAHKAN INFO WAKTU DOWNLOAD DI DALAM SHEET
+    ws2.cell(row=1, column=1, value="Laporan diunduh pada:").font = Font(bold=True)
+    ws2.cell(row=1, column=2, value=waktu_sekarang.strftime("%d %b %Y, %H:%M:%S"))
+    ws2.merge_cells('B1:D1') # Gabungkan sel agar rapi
+
+    headers2 = ['Tool ID Snapshot', 'Tipe Tool Snapshot', 'User', 'Tanggal Masuk', 'Catatan']
+    riwayat = RiwayatGudang.objects.all().order_by('-tanggal_masuk')
+    
+    # Header sekarang dimulai dari baris ke-3
+    for col, title in enumerate(headers2, start=1):
+        cell = ws2.cell(row=3, column=col, value=title)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="9BBB59", end_color="9BBB59", fill_type="solid")
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    # Data sekarang dimulai dari baris ke-4
+    for row_num, r in enumerate(riwayat, start=4):
+        waktu_masuk_local = timezone.localtime(r.tanggal_masuk) # Konversi ke WIB
+        ws2.cell(row=row_num, column=1, value=r.tool_id_snapshot)
+        ws2.cell(row=row_num, column=2, value=r.tipe_tool_snapshot)
+        ws2.cell(row=row_num, column=3, value=r.user.username if r.user else "-")
+        ws2.cell(row=row_num, column=4, value=waktu_masuk_local.strftime("%d %b %Y, %H:%M"))
+        ws2.cell(row=row_num, column=5, value=r.catatan or "-")
+    # apply_excel_styles(ws2, min_row=3, max_col=len(headers2))
+
+    # Autofit kolom (tidak ada perubahan)
+    for ws in [ws1, ws2]:
+        for col in ws.columns:
+            max_length = 0
+            col_letter = get_column_letter(col[0].column)
+            for cell in col:
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            ws.column_dimensions[col_letter].width = max_length + 2
+
+    wb.save(response)
     return response

@@ -1,0 +1,96 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}Gudang TPM{% endblock %}
+
+{% block content %}
+<h1 class="h3 mb-4 text-gray-800">Gudang TPM</h1>
+
+<div class="mb-3">
+    {% if user.userprofile.can_manage_gudang_tpm or user.is_superuser %}
+    {% endif %}
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+    </div>
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+    <h6 class="m-0 font-weight-bold text-primary">Daftar Tool di Gudang</h6>
+    <a href="{% url 'download_gudang_excel' %}" class="btn btn-sm btn-success">
+        <i class="fas fa-file-excel"></i> Download Excel
+    </a>
+</div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>ID Tool</th>
+                        <th>Tipe</th>
+                        <th>Nomor Seri</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for tool in tools %}
+                    <tr>
+                        <td>{{ tool.id_tool }}</td>
+                        <td>{{ tool.tipe_tool }}</td>
+                        <td>{{ tool.nomor_seri }}</td>
+                        <td>
+                        <form method="post" action="{% url 'hapus_tool_gudang' tool.id %}" onsubmit="return confirm('Hapus permanen tool ini?')">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-danger">Hapus Permanen</button>
+                        </form>
+                        <form method="post" action="{% url 'kembalikan_tool_gudang' tool.id %}" onsubmit="return confirm('Kembalikan tool ini ke Lab Maintenance?')">
+                            {% csrf_token %}
+                            <button class="btn btn-sm btn-warning">Kembalikan</button>
+                        </form>
+                            {% if user.userprofile.can_manage_gudang_tpm or user.is_superuser %}
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center">Belum ada tool di Gudang TPM.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Riwayat Masuk Gudang</h6>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>Tool (Snapshot)</th>
+                        <th>User</th>
+                        <th>Tanggal Masuk</th>
+                        <th>Catatan</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in riwayat %}
+                    <tr>
+                        <td>{{ r.tool_id_snapshot }} - {{ r.tipe_tool_snapshot }}</td>
+                        <td>{{ r.user.username|default:"-" }}</td>
+                        <td>{{ r.tanggal_masuk|date:"d M Y, H:i" }}</td>
+                        <td>{{ r.catatan|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="text-center">Belum ada riwayat masuk gudang.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

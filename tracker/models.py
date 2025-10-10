@@ -1,4 +1,3 @@
-# tracker/models.py
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
@@ -18,7 +17,7 @@ class Tool(models.Model):
     shot_terpakai = models.IntegerField("Shot Terpakai", default=0)
     lifetime = models.IntegerField("Total Jam Pakai Maksimal", default=5000)
     jam_pakai_terakumulasi = models.FloatField(default=0, verbose_name="Jam Pakai Terakumulasi")
-    STATUS_CHOICES = [('Tersedia', 'Tersedia'), ('Dipakai', 'Dipakai'), ('Perbaikan', 'Dalam Perbaikan'), ('Gudang TPM', 'Gudang TPM'), ('Diarsipkan', 'Diarsipkan'),]
+    STATUS_CHOICES = [('Tersedia', 'Tersedia'), ('Dipakai', 'Dipakai'), ('Perbaikan', 'Dalam Perbaikan'), ('Gudang TPM', 'Gudang TPM'),]
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Tersedia')
     jenis_kerusakan = models.CharField(max_length=255, blank=True, null=True, help_text="Diisi saat tool masuk lab")
     part_yang_digunakan = models.TextField(blank=True, null=True, help_text="Part yang diganti atau diperbaiki")
@@ -74,6 +73,7 @@ class UserProfile(models.Model):
     can_edit_stok = models.BooleanField(default=False, verbose_name="Akses Penuh Menu Stok")
     can_edit_laporan = models.BooleanField(default=False, verbose_name="Akses Penuh Menu Laporan (Termasuk Download)")
     can_edit_produksi = models.BooleanField(default=False, verbose_name="Akses Penuh Menu Produksi")
+    can_manage_gudang_tpm = models.BooleanField(default=False, verbose_name="Dapat Mengelola Gudang TPM")
 
     def __str__(self):
         return self.user.username
@@ -105,3 +105,25 @@ class RiwayatPerbaikan(models.Model):
 
     def __str__(self):
         return f"Perbaikan {self.tool.id_tool} pada {self.waktu_masuk.strftime('%Y-%m-%d')}"
+
+class RiwayatGudang(models.Model):
+    tool = models.ForeignKey(Tool, on_delete=models.SET_NULL, null=True, blank=True, related_name='riwayat_gudang')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    tanggal_masuk = models.DateTimeField(auto_now_add=True)
+    catatan = models.TextField(blank=True, null=True)
+
+    # Fields ini untuk menyimpan "snapshot" data tool, untuk arsip
+    tool_id_snapshot = models.CharField(max_length=100)
+    tipe_tool_snapshot = models.CharField(max_length=100)
+    nomor_seri_snapshot = models.CharField(max_length=100, blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        # Otomatis isi snapshot saat pertama kali riwayat dibuat
+        if self.tool and not self.id:
+            self.tool_id_snapshot = self.tool.id_tool
+            self.tipe_tool_snapshot = self.tool.tipe_tool
+            self.nomor_seri_snapshot = self.tool.nomor_seri
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"Riwayat {self.tool_id_snapshot} masuk gudang pada {self.tanggal_masuk.strftime('%Y-%m-%d')}"
