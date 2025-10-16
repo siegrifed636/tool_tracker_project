@@ -99,6 +99,7 @@ class PermissionsForm(forms.ModelForm):
             'can_view_stok', 'can_edit_stok',
             'can_view_laporan', 'can_edit_laporan',
             'can_view_produksi', 'can_edit_produksi',
+            'can_manage_gudang_tpm',
         ]
 
 class StokHistoryFilterForm(forms.Form):
