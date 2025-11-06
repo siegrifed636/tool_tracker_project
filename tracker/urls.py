@@ -34,4 +34,5 @@ urlpatterns = [
     path('gudang/download/', views.download_gudang_excel, name='download_gudang_excel'),
     path('gudang/kembalikan/<int:tool_id>/', views.kembalikan_tool_gudang, name='kembalikan_tool_gudang'),
     path('gudang/kembalikan/<int:tool_id>/', views.kembalikan_ke_lab, name='kembalikan_tool_gudang'),
+    path('lab/diagnosa/<int:riwayat_id>/', views.update_diagnosa, name='update_diagnosa'),
 ]

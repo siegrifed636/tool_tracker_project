@@ -2,7 +2,11 @@
 from django import forms
 from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
-from .models import Tool, Proses, SukuCadang, ProductionLog, UserProfile
+# Pastikan semua model ini di-import
+from .models import (
+    Tool, Proses, SukuCadang, ProductionLog, 
+    UserProfile, RiwayatPerbaikan, RiwayatStok
+)
 
 class ProsesForm(forms.ModelForm):
     class Meta:
@@ -18,7 +22,6 @@ class ProsesForm(forms.ModelForm):
 class ToolForm(forms.ModelForm):
     class Meta:
         model = Tool
-        # 'jumlah_shot' ditambahkan ke daftar ini
         fields = [
             'proses', 'stasiun', 'id_tool', 'tipe_tool',
             'nomor_seri', 'jumlah_shot', 'max_shot', 'lifetime', 'jam_pakai_terakumulasi'
@@ -28,52 +31,105 @@ class ToolForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         for field in self.fields:
             self.fields[field].widget.attrs.update({'class': 'form-control'})
+            if field == 'proses':
+                self.fields[field].widget.attrs.update({'class': 'form-select'})
 
+
+# --- PERUBAHAN UTAMA DIMULAI DI SINI ---
+
+# 1. FORM LAMA (MaintenanceForm): Sekarang hanya untuk "Menyelesaikan" perbaikan
 class MaintenanceForm(forms.ModelForm):
-    proses = forms.ModelChoiceField(queryset=Proses.objects.all(), required=True, label="Kembalikan ke Proses", empty_label=None)
-    # --- CHECKBOX BARU DITAMBAHKAN DI SINI ---
-    reset_shot_terpakai = forms.BooleanField(label="Reset Shot Terpakai ke 0?", required=False)
+    # Field 'proses' diganti namanya agar lebih jelas
+    proses_tujuan = forms.ModelChoiceField(
+        queryset=Proses.objects.all(), 
+        required=True, 
+        label="Kembalikan ke Proses Tujuan", 
+        empty_label="-- Pilih Proses --",
+        widget=forms.Select(attrs={'class': 'form-select'})
+    )
+    reset_shot_terpakai = forms.BooleanField(
+        label="Reset Shot Terpakai ke 0", 
+        required=False
+    )
 
     class Meta:
-        model = Tool
-        fields = ['jenis_kerusakan', 'part_yang_digunakan', 'proses']
+        model = RiwayatPerbaikan # Model diubah ke RiwayatPerbaikan
+        fields = ['proses_tujuan', 'reset_shot_terpakai'] # Hanya berisi field untuk menyelesaikan
 
+
+# 2. FORM BARU: Khusus untuk "Diagnosa" (Mengisi kerusakan dan part)
+class UpdateDiagnosaForm(forms.ModelForm):
+    class Meta:
+        model = RiwayatPerbaikan # Model terhubung ke RiwayatPerbaikan
+        fields = ['jenis_kerusakan', 'part_yang_digunakan']
+        widgets = {
+            'jenis_kerusakan': forms.TextInput(attrs={'class': 'form-control'}),
+            'part_yang_digunakan': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
+        }
+        labels = {
+            'jenis_kerusakan': "Jenis Kerusakan yang Ditemukan",
+            'part_yang_digunakan': "Part yang Digunakan (Pisahkan dengan koma jika banyak)",
+        }
+        
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Terapkan style ke field yang ada di Meta
-        for field_name in self.Meta.fields:
-            self.fields[field_name].widget.attrs.update({'class': 'form-control'})
-        # Terapkan style ke field custom (checkbox tidak perlu)
-        self.fields['proses'].widget.attrs.update({'class': 'form-select'})
+        # Form ini wajib diisi untuk diagnosa
+        self.fields['jenis_kerusakan'].required = True
+        self.fields['part_yang_digunakan'].required = True
 
+# --- PERUBAHAN UTAMA SELESAI ---
+
+
+# Form Stok disederhanakan menggunakan ModelForm agar lebih konsisten
 class StokMasukForm(forms.Form):
-    nama_barang_baru = forms.CharField(label="Nama Barang Baru (jika tidak ada di daftar)", max_length=200, required=False)
-    barang_yang_ada = forms.ModelChoiceField(label="Pilih Barang (jika sudah ada)", queryset=SukuCadang.objects.all(), required=False)
-    jumlah = forms.IntegerField(min_value=1)
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        for field in self.fields:
-            self.fields[field].widget.attrs.update({'class': 'form-control'})
+    nama = forms.CharField(
+        label="Nama Suku Cadang (Baru atau Lama)", 
+        max_length=100, 
+        widget=forms.TextInput(attrs={'class': 'form-control'})
+    )
+    jumlah = forms.IntegerField(
+        label="Jumlah Masuk", 
+        min_value=1, 
+        widget=forms.NumberInput(attrs={'class': 'form-control'})
+    )
 
-class StokKeluarForm(forms.Form):
-    suku_cadang = forms.ModelChoiceField(label="Nama Barang", queryset=SukuCadang.objects.all(), empty_label=None)
-    jumlah = forms.IntegerField(min_value=1)
-    tujuan = forms.CharField(max_length=255)
+class StokKeluarForm(forms.ModelForm):
+    class Meta:
+        model = RiwayatStok
+        fields = ['suku_cadang', 'jumlah', 'tujuan']
+        labels = {
+            'suku_cadang': 'Pilih Suku Cadang',
+            'jumlah': 'Jumlah Keluar',
+            'tujuan': 'Tujuan Pengambilan (Tool ID / Keperluan)'
+        }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields:
-            self.fields[field].widget.attrs.update({'class': 'form-control'})
+        self.fields['suku_cadang'].widget.attrs.update({'class': 'form-select'})
+        self.fields['jumlah'].widget.attrs.update({'class': 'form-control', 'min': 1})
+        self.fields['tujuan'].widget.attrs.update({'class': 'form-control'})
+        # Ambil queryset yang hanya menampilkan stok > 0, atau biarkan semua
+        self.fields['suku_cadang'].queryset = SukuCadang.objects.order_by('nama')
+
 
 class ProductionLogForm(forms.ModelForm):
-    durasi_produksi = forms.FloatField(label="Durasi Produksi Hari Ini (Jam)", required=True, min_value=0)
+    durasi_produksi = forms.FloatField(
+        label="Durasi Produksi Hari Ini (Jam)", 
+        required=True, 
+        min_value=0,
+        widget=forms.NumberInput(attrs={'class': 'form-control'})
+    )
     class Meta:
         model = ProductionLog
         fields = ['jumlah_produksi']
+        labels = {
+            'jumlah_produksi': 'Jumlah Produksi Selesai'
+        }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field in self.fields:
-            self.fields[field].widget.attrs.update({'class': 'form-control'})
+        self.fields['jumlah_produksi'].widget.attrs.update({'class': 'form-control', 'min': 1})
+
 
 class UserRegisterForm(UserCreationForm):
     email = forms.EmailField(required=True)
@@ -92,7 +148,6 @@ class UserRegisterForm(UserCreationForm):
 class PermissionsForm(forms.ModelForm):
     class Meta:
         model = UserProfile
-        # Tambahkan 5 field baru
         fields = [
             'can_view_proses', 'can_edit_proses',
             'can_view_lab', 'can_edit_lab',
@@ -101,6 +156,21 @@ class PermissionsForm(forms.ModelForm):
             'can_view_produksi', 'can_edit_produksi',
             'can_manage_gudang_tpm',
         ]
+        # Membuat semua field tampil sebagai checkbox
+        widgets = {
+            'can_view_proses': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_edit_proses': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_view_lab': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_edit_lab': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_view_stok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_edit_stok': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_view_laporan': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_edit_laporan': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_view_produksi': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_edit_produksi': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+            'can_manage_gudang_tpm': forms.CheckboxInput(attrs={'class': 'form-check-input'}),
+        }
+
 
 class StokHistoryFilterForm(forms.Form):
     start_date = forms.DateField(

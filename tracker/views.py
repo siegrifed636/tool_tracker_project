@@ -23,7 +23,7 @@ from .models import (
 )
 from .forms import (
     UserRegisterForm, ToolForm, MaintenanceForm, StokMasukForm,
-    StokKeluarForm, ProductionLogForm, PermissionsForm, ProsesForm, StokHistoryFilterForm
+    StokKeluarForm, ProductionLogForm, PermissionsForm, ProsesForm, StokHistoryFilterForm, UpdateDiagnosaForm
 )
 
 # Fungsi ini tidak perlu login
@@ -112,8 +112,14 @@ def hapus_proses(request, proses_id):
 @login_required
 def daftar_tool(request, proses_id):
     proses = get_object_or_404(Proses, pk=proses_id)
-    tools = Tool.objects.filter(proses=proses)
-    return render(request, 'tracker/tool_list.html', {'proses': proses, 'tools': tools})
+    tools_di_proses_ini = Tool.objects.filter(proses=proses)
+    tools = tools_di_proses_ini.exclude(status__in=['Perbaikan', 'Gudang TPM'])
+
+    context = {
+        'proses': proses,
+        'tools': tools
+    }
+    return render(request, 'tracker/tool_list.html', context)
 
 @login_required
 def tambah_tool(request):
@@ -149,17 +155,29 @@ def hapus_tool(request, tool_id):
 @login_required
 def send_to_lab(request, tool_id):
     tool = get_object_or_404(Tool, pk=tool_id)
-    proses_id = tool.proses.id
     if request.method == 'POST':
         tool.status = 'Perbaikan'
-        tool.proses = None
         tool.save()
+
+        # Hapus riwayat 'Sedang Diperbaiki' yang mungkin menggantung
+        RiwayatPerbaikan.objects.filter(tool=tool, status='Sedang Diperbaiki').delete()
+
+        # Buat 1 baris riwayat baru dengan SINTAKS YANG BENAR
         RiwayatPerbaikan.objects.create(
             tool=tool,
             status='Sedang Diperbaiki',
-            waktu_masuk=timezone.now()
+            waktu_masuk=timezone.now(),
+            proses_awal_snapshot=tool.proses.nama if tool.proses else "-",
+            stasiun_snapshot=tool.stasiun,
+            id_tool_snapshot=tool.id_tool,
+            tipe_tool_snapshot=tool.tipe_tool,
+            nomor_seri_snapshot=tool.nomor_seri
         )
-    return redirect('daftar_tool', proses_id=proses_id)
+
+        messages.success(request, f'Tool "{tool.id_tool}" telah dikirim ke Lab Maintenance.')
+        return redirect(request.META.get('HTTP_REFERER', 'daftar_proses')) 
+
+    return redirect(request.META.get('HTTP_REFERER', 'daftar_proses'))
 
 @login_required
 def lab_maintenance_list(request):
@@ -195,72 +213,100 @@ def lab_maintenance_list(request):
 @login_required
 def simpan_di_gudang(request, tool_id):
     tool = get_object_or_404(Tool, pk=tool_id)
+    
+    # Logika untuk mendapatkan riwayat aktif, jika ada
     try:
-        riwayat_aktif = RiwayatPerbaikan.objects.get(tool=tool, status='Sedang Diperbaiki')
+        active_repair = RiwayatPerbaikan.objects.get(tool=tool, status='Sedang Diperbaiki')
+        # Hapus riwayat aktif karena tool tidak jadi diperbaiki/ditumbal
+        active_repair.delete() 
     except RiwayatPerbaikan.DoesNotExist:
-        messages.error(request, 'Catatan perbaikan aktif tidak ditemukan untuk tool ini.')
-        return redirect('lab_maintenance_list')
+        pass # Tidak ada perbaikan aktif
 
     if request.method == 'POST':
-        tool.status = 'Gudang TPM'   # ✅ pakai status valid
-        tool.save()
+        catatan = request.POST.get('catatan', 'Dipindahkan ke gudang dari Lab Maintenance.')
 
-        # Update perbaikan
-        riwayat_aktif.status = 'Selesai'
-        riwayat_aktif.waktu_selesai = timezone.now()
-        riwayat_aktif.dikerjakan_oleh = request.user.username
-        riwayat_aktif.jenis_kerusakan = riwayat_aktif.jenis_kerusakan or "N/A"
-        riwayat_aktif.part_yang_digunakan = "Tool disimpan di Gudang TPM."
-        riwayat_aktif.save()
-
-        # ✅ Simpan riwayat gudang
+        # 1. Pastikan RiwayatGudang tercipta
         RiwayatGudang.objects.create(
             tool=tool,
             user=request.user,
-            catatan="Dipindahkan ke Gudang TPM"
+            tanggal_masuk=timezone.now(),
+            catatan=catatan,
         )
 
-        messages.success(request, f'Tool "{tool.id_tool}" telah berhasil dipindahkan ke Gudang TPM.')
-        return redirect('lab_maintenance_list')
+        # 2. Update status tool
+        tool.status = 'Gudang TPM'
+        tool.proses = None # Hapus dari proses aktif
+        tool.stasiun = 'Gudang TPM' # Pindah stasiun
+        tool.save()
+
+        messages.success(request, f'Tool "{tool.id_tool}" berhasil disimpan di Gudang TPM.')
+        return redirect('lab_maintenance_list') 
 
     return redirect('lab_maintenance_list')
 
 @login_required
-def finish_repair(request, tool_id):
-    tool = get_object_or_404(Tool, pk=tool_id)
-    try:
-        riwayat_aktif = RiwayatPerbaikan.objects.get(tool=tool, status='Sedang Diperbaiki')
-    except RiwayatPerbaikan.DoesNotExist:
-        messages.error(request, 'Catatan perbaikan aktif tidak ditemukan untuk tool ini.')
-        return redirect('lab_maintenance_list')
+def update_diagnosa(request, riwayat_id):
+    # Ini adalah Langkah 2 (Diagnosa) dari alur kita
+    riwayat = get_object_or_404(RiwayatPerbaikan, pk=riwayat_id, status='Sedang Diperbaiki')
+    tool = riwayat.tool
 
     if request.method == 'POST':
-        # Kita gunakan tool sebagai instance agar form tahu field mana yang harus di-render
-        form = MaintenanceForm(request.POST, instance=tool)
+        form = UpdateDiagnosaForm(request.POST, instance=riwayat)
         if form.is_valid():
-            # Update catatan riwayat
-            riwayat_aktif.jenis_kerusakan = form.cleaned_data['jenis_kerusakan']
-            riwayat_aktif.part_yang_digunakan = form.cleaned_data['part_yang_digunakan']
-            riwayat_aktif.dikerjakan_oleh = request.user.username
-            riwayat_aktif.waktu_selesai = timezone.now()
-            riwayat_aktif.status = 'Selesai'
-            riwayat_aktif.save()
-
-            # Ambil tool instance dari form
-            tool_instance = form.save(commit=False)
-            tool_instance.status = 'Tersedia'
-
-            # --- LOGIKA BARU UNTUK MERESET SHOT ---
-            if form.cleaned_data.get('reset_shot_terpakai'):
-                tool_instance.shot_terpakai = 0
-
-            tool_instance.save() # Simpan perubahan pada tool
-            # Perlu save_m2m jika ada field ManyToMany, tapi kita tidak punya
+            form.save()
+            messages.success(request, f"Diagnosa untuk tool {tool.id_tool} telah diperbarui.")
             return redirect('lab_maintenance_list')
     else:
-        form = MaintenanceForm(instance=tool)
+        # Tampilkan form dengan data kerusakan/part yang mungkin sudah ada
+        form = UpdateDiagnosaForm(instance=riwayat)
+    
+    context = {
+        'form': form,
+        'tool': tool
+    }
+    return render(request, 'tracker/update_diagnosa_form.html', context)
 
-    return render(request, 'tracker/finish_repair_form.html', {'form': form, 'tool': tool})
+@login_required
+def finish_repair(request, tool_id):
+    # Ini adalah Langkah 3 (Selesaikan Perbaikan)
+    tool = get_object_or_404(Tool, pk=tool_id)
+    # Temukan riwayat perbaikan yang statusnya 'Sedang Diperbaiki' untuk tool ini
+    riwayat = get_object_or_404(RiwayatPerbaikan, tool=tool, status='Sedang Diperbaiki')
+    
+    if request.method == 'POST':
+        # Form ini adalah MaintenanceForm baru yang HANYA berisi proses tujuan & reset shot
+        form = MaintenanceForm(request.POST) 
+        if form.is_valid():
+            # Ambil data dari form
+            proses_tujuan = form.cleaned_data['proses_tujuan']
+            reset_shot = form.cleaned_data['reset_shot_terpakai']
+
+            # 1. Update Tool
+            tool.status = 'Tersedia'
+            tool.proses = proses_tujuan # Kembalikan tool ke proses tujuan
+            if reset_shot:
+                tool.shot_terpakai = 0
+            tool.save()
+
+            # 2. Update Riwayat Perbaikan (Menyelesaikan 1 baris riwayat)
+            riwayat.status = 'Selesai'
+            riwayat.waktu_selesai = timezone.now()
+            riwayat.dikerjakan_oleh = request.user.username
+            riwayat.proses_tujuan_snapshot = proses_tujuan.nama # Simpan snapshot nama proses
+            riwayat.save()
+
+            messages.success(request, f"Tool {tool.id_tool} telah selesai diperbaiki dan dikembalikan ke {proses_tujuan.nama}.")
+            return redirect('lab_maintenance_list')
+    else:
+        # Tampilkan form kosong
+        form = MaintenanceForm()
+    
+    context = {
+        'form': form,
+        'tool': tool,
+        'riwayat': riwayat # Kirim riwayat agar bisa tampilkan info diagnosa di halaman
+    }
+    return render(request, 'tracker/finish_repair_form.html', context)
 
 @login_required
 @transaction.atomic
@@ -630,47 +676,57 @@ def get_tool_history(request, tool_id):
 
 @login_required
 def download_laporan_lab(request):
+    # Hanya mengambil data yang statusnya 'Selesai'
+    history_list = RiwayatPerbaikan.objects.filter(status='Selesai').order_by('-waktu_selesai')
+
+    # Mendapatkan filter tahun/bulan jika ada (dari lab_maintenance_list)
     get_year = request.GET.get('year')
     get_month = request.GET.get('month')
-
-    riwayat_list = RiwayatPerbaikan.objects.filter(status='Selesai').order_by('-waktu_selesai')
-
+    
     if get_year and get_year.isdigit():
-        riwayat_list = riwayat_list.filter(waktu_selesai__year=int(get_year))
+        history_list = history_list.filter(waktu_selesai__year=int(get_year))
     if get_month and get_month.isdigit():
-        riwayat_list = riwayat_list.filter(waktu_selesai__month=int(get_month))
+        history_list = history_list.filter(waktu_selesai__month=int(get_month))
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="riwayat_perbaikan_tool.xlsx"'
+    # Tentukan nama file
+    response['Content-Disposition'] = 'attachment; filename="laporan_perbaikan_tool.xlsx"'
+
     workbook = openpyxl.Workbook()
     worksheet = workbook.active
     worksheet.title = 'Riwayat Perbaikan'
 
+    # Tambahkan semua header baru dan pisahkan Tanggal/Waktu
     headers = [
-        'ID Tool', 'Tipe Tool', 'Nomor Seri', 'Jenis Kerusakan', 'Part yang Digunakan',
-        'Dikembalikan ke Proses', 'Tanggal Masuk', 'Waktu Masuk', 'Tanggal Selesai',
-        'Waktu Selesai', 'Dikerjakan Oleh'
+        'ID Tool', 'Tipe Tool', 'Nomor Seri', 'Proses Awal', 'Stasiun Awal', 
+        'Kerusakan', 'Part Digunakan', 'Proses Tujuan', 
+        'Tgl Masuk', 'Waktu Masuk', 'Tgl Selesai', 'Waktu Selesai', 'Oleh'
     ]
     worksheet.append(headers)
 
-    # --- BAGIAN INI DIPERBAIKI TOTAL ---
-    # Urutan data sekarang sama persis dengan urutan header di atas
-    for riwayat in riwayat_list:
-        worksheet.append([
-            riwayat.tool.id_tool,
-            riwayat.tool.tipe_tool,
-            riwayat.tool.nomor_seri,
-            riwayat.jenis_kerusakan,
-            riwayat.part_yang_digunakan,
-            riwayat.tool.proses.nama if riwayat.tool.proses else '-',
-            riwayat.waktu_masuk.strftime('%d %b %Y'),
-            riwayat.waktu_masuk.strftime('%H:%M'),
-            riwayat.waktu_selesai.strftime('%d %b %Y') if riwayat.waktu_selesai else '',
-            riwayat.waktu_selesai.strftime('%H:%M') if riwayat.waktu_selesai else '',
-            riwayat.dikerjakan_oleh
-        ])
+    # Isi data
+    for log in history_list:
+        # Konversi waktu ke zona waktu lokal (WIB)
+        waktu_masuk_local = timezone.localtime(log.waktu_masuk)
+        waktu_selesai_local = timezone.localtime(log.waktu_selesai)
 
-    worksheet = apply_excel_styles(worksheet)
+        row_data = [
+            log.id_tool_snapshot or log.tool.id_tool, # Fallback ke tool.id_tool jika snapshot kosong
+            log.tipe_tool_snapshot or log.tool.tipe_tool,
+            log.nomor_seri_snapshot or log.tool.nomor_seri,
+            log.proses_awal_snapshot or '-',
+            log.stasiun_snapshot or '-',
+            log.jenis_kerusakan or '-',
+            log.part_yang_digunakan or '-',
+            log.proses_tujuan_snapshot or '-',
+            waktu_masuk_local.strftime('%Y-%m-%d'),
+            waktu_masuk_local.strftime('%H:%M:%S'),
+            waktu_selesai_local.strftime('%Y-%m-%d'),
+            waktu_selesai_local.strftime('%H:%M:%S'),
+            log.dikerjakan_oleh or '-',
+        ]
+        worksheet.append(row_data) 
+    
     workbook.save(response)
     return response
 
@@ -781,76 +837,44 @@ def kembalikan_ke_lab(request, tool_id):
 
 @login_required
 def download_gudang_excel(request):
-    # 👇 1. AMBIL WAKTU SAAT INI (REAL-TIME)
-    waktu_sekarang = timezone.localtime(timezone.now())
-    timestamp_str = waktu_sekarang.strftime("%Y-%m-%d_%H-%M")
+    if not (request.user.userprofile.is_developer or request.user.userprofile.can_manage_gudang_tpm):
+        messages.error(request, "Anda tidak memiliki izin untuk mengunduh laporan gudang.")
+        return redirect('gudang_tpm_list')
+
+    riwayat_gudang = RiwayatGudang.objects.all().order_by('-tanggal_masuk')
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    # 👇 2. GUNAKAN WAKTU REAL-TIME DI NAMA FILE
-    response['Content-Disposition'] = f'attachment; filename="gudang_tpm_{timestamp_str}.xlsx"'
+    response['Content-Disposition'] = 'attachment; filename="laporan_gudang_tpm.xlsx"'
 
-    wb = openpyxl.Workbook()
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
+    worksheet.title = 'Riwayat Masuk Gudang'
 
-    # === Sheet 1: Daftar Tool (Tidak ada perubahan di sini) ===
-    ws1 = wb.active
-    ws1.title = "Daftar Tool Gudang"
-    headers1 = ['ID Tool', 'Tipe Tool', 'Nomor Seri', 'Proses', 'Stasiun', 'Status', 'Max Shot', 'Shot Terpakai', 'Sisa Shot', 'Performa (%)']
-    tools = Tool.objects.filter(status='Gudang TPM')
-    for col, title in enumerate(headers1, start=1):
-        cell = ws1.cell(row=1, column=col, value=title)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-    for row_num, tool in enumerate(tools, start=2):
-        ws1.cell(row=row_num, column=1, value=tool.id_tool)
-        ws1.cell(row=row_num, column=2, value=tool.tipe_tool)
-        ws1.cell(row=row_num, column=3, value=tool.nomor_seri)
-        ws1.cell(row=row_num, column=4, value=tool.proses.nama if tool.proses else "-")
-        ws1.cell(row=row_num, column=5, value=tool.stasiun)
-        ws1.cell(row=row_num, column=6, value=tool.status)
-        ws1.cell(row=row_num, column=7, value=tool.max_shot)
-        ws1.cell(row=row_num, column=8, value=tool.shot_terpakai)
-        ws1.cell(row=row_num, column=9, value=tool.sisa_shot)
-        ws1.cell(row=row_num, column=10, value=tool.performa)
-    # apply_excel_styles(ws1, min_row=1, max_col=len(headers1))
+    # Tambahkan semua header
+    headers = [
+        'ID Tool', 'Tipe Tool', 'Nomor Seri', 'Proses Awal', 'Stasiun Awal', 
+        'User', 'Tgl Masuk', 'Waktu Masuk', 'Catatan'
+    ]
+    worksheet.append(headers)
 
-    # === Sheet 2: Riwayat Gudang ===
-    ws2 = wb.create_sheet("Riwayat Gudang")
+    # Isi data
+    for r in riwayat_gudang:
+        waktu_masuk_local = timezone.localtime(r.tanggal_masuk)
 
-    # 👇 3. TAMBAHKAN INFO WAKTU DOWNLOAD DI DALAM SHEET
-    ws2.cell(row=1, column=1, value="Laporan diunduh pada:").font = Font(bold=True)
-    ws2.cell(row=1, column=2, value=waktu_sekarang.strftime("%d %b %Y, %H:%M:%S"))
-    ws2.merge_cells('B1:D1') # Gabungkan sel agar rapi
+        row_data = [
+            r.tool_id_snapshot or '-',
+            r.tipe_tool_snapshot or '-',
+            r.nomor_seri_snapshot or '-',
+            r.proses_snapshot or '-', # SEKARANG KOLOM INI ADA!
+            r.stasiun_snapshot or '-', # SEKARANG KOLOM INI ADA!
+            r.user.username if r.user else '-',
+            waktu_masuk_local.strftime('%Y-%m-%d'),
+            waktu_masuk_local.strftime('%H:%M:%S'),
+            r.catatan or '-',
+        ]
+        worksheet.append(row_data)
 
-    headers2 = ['Tool ID Snapshot', 'Tipe Tool Snapshot', 'User', 'Tanggal Masuk', 'Catatan']
-    riwayat = RiwayatGudang.objects.all().order_by('-tanggal_masuk')
+    # Anda bisa tambahkan fungsi styling Excel di sini
     
-    # Header sekarang dimulai dari baris ke-3
-    for col, title in enumerate(headers2, start=1):
-        cell = ws2.cell(row=3, column=col, value=title)
-        cell.font = Font(bold=True, color="FFFFFF")
-        cell.fill = PatternFill(start_color="9BBB59", end_color="9BBB59", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
-
-    # Data sekarang dimulai dari baris ke-4
-    for row_num, r in enumerate(riwayat, start=4):
-        waktu_masuk_local = timezone.localtime(r.tanggal_masuk) # Konversi ke WIB
-        ws2.cell(row=row_num, column=1, value=r.tool_id_snapshot)
-        ws2.cell(row=row_num, column=2, value=r.tipe_tool_snapshot)
-        ws2.cell(row=row_num, column=3, value=r.user.username if r.user else "-")
-        ws2.cell(row=row_num, column=4, value=waktu_masuk_local.strftime("%d %b %Y, %H:%M"))
-        ws2.cell(row=row_num, column=5, value=r.catatan or "-")
-    # apply_excel_styles(ws2, min_row=3, max_col=len(headers2))
-
-    # Autofit kolom (tidak ada perubahan)
-    for ws in [ws1, ws2]:
-        for col in ws.columns:
-            max_length = 0
-            col_letter = get_column_letter(col[0].column)
-            for cell in col:
-                if cell.value:
-                    max_length = max(max_length, len(str(cell.value)))
-            ws.column_dimensions[col_letter].width = max_length + 2
-
-    wb.save(response)
+    workbook.save(response)
     return response

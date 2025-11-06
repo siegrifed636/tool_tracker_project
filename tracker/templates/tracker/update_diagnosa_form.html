@@ -1,0 +1,43 @@
+{% extends 'tracker/base.html' %}
+
+{% block title %}Update Diagnosa Perbaikan{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">Update Diagnosa untuk Tool: <span class="text-muted">{{ tool.id_tool }}</span></h2>
+
+<div class="card shadow mb-4">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Formulir Diagnosa</h6>
+    </div>
+    <div class="card-body">
+        <p>Silakan isi detail kerusakan dan part yang digunakan. Tool akan tetap berstatus "Sedang Diperbaiki" setelah Anda simpan.</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+                <label for="{{ form.jenis_kerusakan.id_for_label }}" class="form-label">{{ form.jenis_kerusakan.label }}</label>
+                {{ form.jenis_kerusakan }}
+                {% if form.jenis_kerusakan.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.jenis_kerusakan.errors.0 }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <div class="mb-3">
+                <label for="{{ form.part_yang_digunakan.id_for_label }}" class="form-label">{{ form.part_yang_digunakan.label }}</label>
+                {{ form.part_yang_digunakan }}
+                {% if form.part_yang_digunakan.errors %}
+                    <div class="invalid-feedback d-block">
+                        {{ form.part_yang_digunakan.errors.0 }}
+                    </div>
+                {% endif %}
+            </div>
+
+            <button type="submit" class="btn btn-primary mt-3">Simpan Diagnosa</button>
+            <a href="{% url 'lab_maintenance_list' %}" class="btn btn-secondary mt-3">Batal</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

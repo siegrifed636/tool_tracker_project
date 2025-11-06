@@ -3,18 +3,44 @@
 {% block title %}Selesaikan Perbaikan{% endblock %}
 
 {% block content %}
-<h2>Selesaikan Perbaikan untuk Tool: <span class="text-muted">{{ tool.id_tool }}</span></h2>
-<hr>
-<div class="card">
-    <div class="card-body">
-        <form method="post">
-            {% csrf_token %}
-            
-            {{ form.as_p }}
+<h2 class="mb-4">Selesaikan Perbaikan: <span class="text-muted">{{ tool.id_tool }}</span></h2>
 
-            <button type="submit" class="btn btn-success mt-3">Simpan & Selesaikan Perbaikan</button>
-            <a href="{% url 'lab_maintenance_list' %}" class="btn btn-secondary mt-3">Batal</a>
-        </form>
+<div class="row">
+    <div class="col-lg-7">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Formulir Penyelesaian</h6>
+            </div>
+            <div class="card-body">
+                <p>Tool akan dikembalikan ke status "Tersedia" dan dipindahkan ke proses tujuan.</p>
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {{ form.as_p }}
+
+                    <button type="submit" class="btn btn-success mt-3">Simpan & Selesaikan Perbaikan</button>
+                    <a href="{% url 'lab_maintenance_list' %}" class="btn btn-secondary mt-3">Batal</a>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-info">Ringkasan Diagnosa</h6>
+            </div>
+            <div class="card-body">
+                <h6 class="font-weight-bold">Jenis Kerusakan:</h6>
+                <p>{{ riwayat.jenis_kerusakan|default:"Belum diisi." }}</p>
+                
+                <h6 class="font-weight-bold">Part yang Digunakan:</h6>
+                <p>{{ riwayat.part_yang_digunakan|default:"Belum diisi." }}</p>
+
+                <hr>
+                <small class="text-muted">Informasi ini diisi melalui tombol "Isi Diagnosa".</small>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

@@ -1,18 +1,27 @@
 {% extends 'tracker/base.html' %}
+{% load static %}
+
 {% block title %}Lab Maintenance{% endblock %}
 
 {% block content %}
 <h2 class="mb-4">Tool Sedang Diperbaiki</h2>
-<div class="card mb-5">
+<div class="card shadow mb-5">
+    <div class="card-header py-3">
+        <h6 class="m-0 font-weight-bold text-primary">Daftar Tool Aktif di Lab</h6>
+    </div>
     <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-striped">
+            <table class="table table-bordered table-striped" width="100%" cellspacing="0">
                 <thead>
                     <tr>
-                        <th>Masuk Lab</th>
+                        <th>Tgl. Masuk</th>
                         <th>ID Tool</th>
                         <th>Tipe Tool</th>
-                        <th>Status</th>
+                        <th>No. Seri</th>
+                        <th>Proses (Awal)</th>
+                        <th>Stasiun (Awal)</th>
+                        <th>Kerusakan</th>
+                        <th>Part Digunakan</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -20,25 +29,34 @@
                     {% for repair in active_repairs %}
                     <tr>
                         <td>{{ repair.waktu_masuk|date:"d M Y, H:i" }}</td>
-                        <td>{{ repair.tool.id_tool }}</td>
-                        <td>{{ repair.tool.tipe_tool }}</td>
-                        <td><span class="badge bg-warning text-dark">{{ repair.status }}</span></td>
-                        <td>
+                        <td>{{ repair.id_tool_snapshot|default:repair.tool.id_tool }}</td>
+                        <td>{{ repair.tipe_tool_snapshot|default:repair.tool.tipe_tool }}</td>
+                        <td>{{ repair.nomor_seri_snapshot|default:repair.tool.nomor_seri }}</td>
+                        <td>{{ repair.proses_awal_snapshot|default:"-" }}</td>
+                        <td>{{ repair.stasiun_snapshot|default:"-" }}</td>
+                        <td>{{ repair.jenis_kerusakan|default:"<span class='text-muted'>Belum didiagnosa</span>"|safe }}</td>
+                        <td>{{ repair.part_yang_digunakan|default:"<span class='text-muted'>-</span>"|safe }}</td>
+                        <td style="min-width: 280px;">
                             {% if user.userprofile.is_developer or user.userprofile.can_edit_lab %}
-                            <a href="{% url 'finish_repair' repair.tool.id %}" class="btn btn-sm btn-success">Selesaikan Perbaikan</a>
-                        </td>
-                        <td>
-                            <form action="{% url 'simpan_di_gudang' repair.tool.id %}" method="post" class="d-inline ms-1">
-                            {% csrf_token %}
-                             <button type="submit" class="btn btn-sm btn-secondary">Simpan di Gudang</button>
-                            </form>
-
+                                <a href="{% url 'update_diagnosa' repair.id %}" class="btn btn-sm btn-warning mb-1">
+                                    Isi Diagnosa
+                                </a>
+                                <a href="{% url 'finish_repair' repair.tool.id %}" class="btn btn-sm btn-success mb-1">
+                                    Selesaikan
+                                </a>
+                                <form action="{% url 'simpan_di_gudang' repair.tool.id %}" method="post" class="d-inline ms-1">
+                                    {% csrf_token %}
+                                    <button type,"submit" class="btn btn-sm btn-secondary mb-1" 
+                                            onclick="return confirm('Anda yakin ingin memindahkan tool {{ repair.tool.id_tool }} ke Gudang TPM?')">
+                                        Ke Gudang
+                                    </button>
+                                </form>
                             {% endif %}
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center">Tidak ada tool yang sedang dalam perbaikan.</td>
+                        <td colspan="9" class="text-center">Tidak ada tool yang sedang diperbaiki saat ini.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -47,54 +65,51 @@
     </div>
 </div>
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2>Riwayat Lengkap Perbaikan</h2>
-    {% if user.userprofile.is_developer or user.userprofile.can_edit_lab %}
-    <a href="{% url 'download_laporan_lab' %}?year={{ selected_year|default:'' }}&month={{ selected_month|default:'' }}" class="btn btn-primary">Unduh Laporan Excel</a>
-    {% endif %}
-</div>
-
-<div class="card mb-4">
+<h2 class="mb-4">Riwayat Perbaikan Selesai</h2>
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex flex-wrap justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">Riwayat Perbaikan Selesai</h6>
+        <a href="{% url 'download_laporan_lab' %}" class="btn btn-success btn-sm mt-2 mt-md-0">
+            <i class="fas fa-file-excel"></i> Download Riwayat
+        </a>
+    </div>
     <div class="card-body">
-        <form method="get" class="row g-3 align-items-center">
-            <div class="col-auto">
-                <label for="year" class="form-label">Tahun</label>
-                <select name="year" id="year" class="form-select">
+        <form method="get" class="row mb-3">
+            <div class="col-md-3">
+                <label for="id_year" class="form-label">Tahun:</label>
+                <select name="year" id="id_year" class="form-select">
                     <option value="">Semua Tahun</option>
                     {% for year in years_with_history %}
-                    <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
+                        <option value="{{ year }}" {% if year == selected_year %}selected{% endif %}>{{ year }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-auto">
-                <label for="month" class="form-label">Bulan</label>
-                <select name="month" id="month" class="form-select">
+            <div class="col-md-3">
+                <label for="id_month" class="form-label">Bulan:</label>
+                <select name="month" id="id_month" class="form-select">
                     <option value="">Semua Bulan</option>
                     {% for month in months %}
-                    <option value="{{ month.value }}" {% if month.value == selected_month %}selected{% endif %}>{{ month.name }}</option>
+                        <option value="{{ month.value }}" {% if month.value == selected_month %}selected{% endif %}>{{ month.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-auto mt-4">
-                <button type="submit" class="btn btn-info">Filter</button>
+            <div class="col-md-3 align-self-end">
+                <button type="submit" class="btn btn-primary">Filter</button>
                 <a href="{% url 'lab_maintenance_list' %}" class="btn btn-secondary">Reset</a>
             </div>
         </form>
-    </div>
-</div>
 
-<div class="card">
-    <div class="card-body">
         <div class="table-responsive">
-            <table class="table table-sm">
+            <table class="table table-bordered table-sm" width="100%" cellspacing="0">
                 <thead>
                     <tr>
                         <th>ID Tool</th>
                         <th>Tipe Tool</th>
-                        <th>Nomor Seri</th>
-                        <th>Jenis Kerusakan</th>
+                        <th>No. Seri</th>
+                        <th>Stasiun (Awal)</th>
+                        <th>Kerusakan</th>
                         <th>Part Digunakan</th>
-                        <th>Dikembalikan ke Proses</th>
+                        <th>Proses (Tujuan)</th>
                         <th>Tgl Masuk</th>
                         <th>Waktu Masuk</th>
                         <th>Tgl Selesai</th>
@@ -105,21 +120,22 @@
                 <tbody>
                     {% for log in history_list %}
                     <tr>
-                        <td>{{ log.tool.id_tool }}</td>
-                        <td>{{ log.tool.tipe_tool }}</td>
-                        <td>{{ log.tool.nomor_seri }}</td>
-                        <td>{{ log.jenis_kerusakan }}</td>
-                        <td>{{ log.part_yang_digunakan }}</td>
-                        <td>{{ log.tool.proses.nama|default:"-" }}</td>
+                        <td>{{ log.id_tool_snapshot|default:"-" }}</td>
+                        <td>{{ log.tipe_tool_snapshot|default:"-" }}</td>
+                        <td>{{ log.nomor_seri_snapshot|default:"-" }}</td>
+                        <td>{{ log.stasiun_snapshot|default:"-" }}</td>
+                        <td>{{ log.jenis_kerusakan|default:"-" }}</td>
+                        <td>{{ log.part_yang_digunakan|default:"-" }}</td>
+                        <td>{{ log.proses_tujuan_snapshot|default:"-" }}</td>
                         <td>{{ log.waktu_masuk|date:"d M Y" }}</td>
                         <td>{{ log.waktu_masuk|date:"H:i" }}</td>
                         <td>{{ log.waktu_selesai|date:"d M Y" }}</td>
                         <td>{{ log.waktu_selesai|date:"H:i" }}</td>
-                        <td>{{ log.dikerjakan_oleh }}</td>
+                        <td>{{ log.dikerjakan_oleh|default:"-" }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="11" class="text-center">Tidak ada riwayat untuk filter ini.</td>
+                        <td colspan="12" class="text-center">Tidak ada riwayat untuk filter ini.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -127,4 +143,5 @@
         </div>
     </div>
 </div>
+
 {% endblock %}

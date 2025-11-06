@@ -79,14 +79,6 @@ class UserProfile(models.Model):
         return self.user.username
 
 class RiwayatPerbaikan(models.Model):
-    tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name='riwayat_perbaikan')
-    waktu_selesai = models.DateTimeField(auto_now_add=True)
-    jenis_kerusakan = models.CharField(max_length=255)
-    part_yang_digunakan = models.TextField()
-    dikerjakan_oleh = models.CharField(max_length=150)
-    def __str__(self): return f"Perbaikan {self.tool.id_tool} pada {self.waktu_selesai.strftime('%Y-%m-%d')}"
-
-class RiwayatPerbaikan(models.Model):
     STATUS_CHOICES = [
         ('Sedang Diperbaiki', 'Sedang Diperbaiki'),
         ('Selesai', 'Selesai'),
@@ -94,17 +86,26 @@ class RiwayatPerbaikan(models.Model):
     tool = models.ForeignKey(Tool, on_delete=models.CASCADE, related_name='riwayat_perbaikan')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Sedang Diperbaiki')
 
-    # Waktu akan kita atur melalui view
-    waktu_masuk = models.DateTimeField()
-    waktu_selesai = models.DateTimeField(null=True, blank=True)
+    waktu_masuk = models.DateTimeField(null=True, blank=True) # Akan kita isi saat tool masuk
+    waktu_selesai = models.DateTimeField(null=True, blank=True) # Akan kita isi saat selesai
 
-    # Detail perbaikan, bisa kosong saat baru masuk
+    proses_awal_snapshot = models.CharField(max_length=100, null=True, blank=True)
+    stasiun_snapshot = models.CharField(max_length=100, null=True, blank=True)
+
+    id_tool_snapshot = models.CharField(max_length=50, null=True, blank=True)
+    tipe_tool_snapshot = models.CharField(max_length=100, null=True, blank=True)
+    nomor_seri_snapshot = models.CharField(max_length=100, null=True, blank=True)
+    
     jenis_kerusakan = models.CharField(max_length=255, null=True, blank=True)
     part_yang_digunakan = models.TextField(null=True, blank=True)
+    
     dikerjakan_oleh = models.CharField(max_length=150, null=True, blank=True)
+    proses_tujuan_snapshot = models.CharField(max_length=100, null=True, blank=True)
 
     def __str__(self):
-        return f"Perbaikan {self.tool.id_tool} pada {self.waktu_masuk.strftime('%Y-%m-%d')}"
+        if self.waktu_masuk:
+            return f"Perbaikan {self.tool.id_tool} pada {self.waktu_masuk.strftime('%Y-%m-%d')}"
+        return f"Perbaikan {self.tool.id_tool}"
 
 class RiwayatGudang(models.Model):
     tool = models.ForeignKey(Tool, on_delete=models.SET_NULL, null=True, blank=True, related_name='riwayat_gudang')
@@ -116,6 +117,10 @@ class RiwayatGudang(models.Model):
     tool_id_snapshot = models.CharField(max_length=100)
     tipe_tool_snapshot = models.CharField(max_length=100)
     nomor_seri_snapshot = models.CharField(max_length=100, blank=True, null=True)
+    
+    # 👇 2 FIELD BARU UNTUK MEMPERBAIKI ERROR INI
+    proses_snapshot = models.CharField(max_length=100, blank=True, null=True)
+    stasiun_snapshot = models.CharField(max_length=100, blank=True, null=True)
 
     def save(self, *args, **kwargs):
         # Otomatis isi snapshot saat pertama kali riwayat dibuat
@@ -123,6 +128,10 @@ class RiwayatGudang(models.Model):
             self.tool_id_snapshot = self.tool.id_tool
             self.tipe_tool_snapshot = self.tool.tipe_tool
             self.nomor_seri_snapshot = self.tool.nomor_seri
+            # Tambahkan logika untuk proses & stasiun
+            self.proses_snapshot = self.tool.proses.nama if self.tool.proses else "-"
+            self.stasiun_snapshot = self.tool.stasiun
+            
         super().save(*args, **kwargs)
 
     def __str__(self):
